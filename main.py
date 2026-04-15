@@ -147,11 +147,73 @@ async def upload_excel(file: UploadFile = File(...), sheet: str = Form(None)):
         "created_at": datetime.now().isoformat(),
     }
     
+    # 프론트 대시보드용 직렬화 데이터
+    def _ser_session(s):
+        return {
+            "session_label": s.get("session_label", s.get("sheet_name", "")),
+            "sheet_name": s.get("sheet_name", ""),
+            "response_count": s.get("response_count", 0),
+            "overall_average": s.get("overall_average", 0),
+            "categories": [
+                {"name": c["name"], "avg": c["avg"],
+                 "per_session": c.get("per_session", {}),
+                 "questions": [{"id": q["id"], "label": q["label"],
+                                "avg": q["avg"], "count": q.get("count", 0)}
+                               for q in c["questions"]]
+                } for c in s.get("categories", [])
+            ],
+            "questions": [{"id": q["id"], "label": q["label"],
+                           "avg": q["avg"], "count": q.get("count", 0),
+                           "category": q["category"]}
+                          for q in s.get("questions", [])],
+            "open_ended": [{"id": o["id"], "label": o["label"],
+                            "answers": o.get("answers", [])}
+                           for o in s.get("open_ended", [])],
+        }
+
+    serialized_multi = {
+        "multi_session": multi_result["multi_session"],
+        "sessions": [_ser_session(s) for s in multi_result["sessions"]],
+        "combined": _ser_session(multi_result["combined"]),
+    }
+
     return {
         "session_id": session_id,
         "summary": summary,
         "ai_result": ai_result,
+        "multi_result": serialized_multi,
     }
+
+
+@app.get("/api/analyze_qual/{session_id}")
+async def analyze_qual(session_id: str):
+    """주관식 공통응답 그룹핑 (대시보드용)"""
+    if session_id not in sessions:
+        raise HTTPException(404, "세션 없음")
+    sess = sessions[session_id]
+    data = sess["data"]
+    multi_result = sess.get("multi_result", {})
+    combined = multi_result.get("combined", data)
+
+    try:
+        grouped = await process_all_open_ended(
+            combined.get("open_ended", []), ai_engine
+        )
+        # 각 차수 주관식도 그룹핑
+        sessions_qual = []
+        for s in multi_result.get("sessions", []):
+            sg = await process_all_open_ended(s.get("open_ended", []), ai_engine)
+            sessions_qual.append({
+                "session_label": s.get("session_label", s.get("sheet_name", "")),
+                "open_ended_grouped": sg,
+            })
+        return {
+            "open_ended_grouped": grouped,
+            "sessions_qual": sessions_qual,
+        }
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return {"open_ended_grouped": [], "error": str(e)}
 
 
 @app.post("/api/generate/{session_id}")

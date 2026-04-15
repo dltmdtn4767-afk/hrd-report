@@ -1,411 +1,566 @@
-/* HRD 결과보고서 생성기 — Frontend Logic */
+/* =============================================
+   HRD 결과보고서 분석기 — 메인 앱 로직 v3
+   ============================================= */
 
-let state = {
-    sessionId: null,
-    file: null,
-    preview: [],
-    currentSlide: 0,
-};
+let sessionId = null;
+let analysisData = null;   // { summary, sessions, combined }
+let currentSession = null; // 현재 선택된 차수 데이터
+let charts = {};
 
-// AI 상태 확인
-(async function checkAIStatus() {
-    try {
-        const res = await fetch('/api/status');
-        const status = await res.json();
-        const badge = document.getElementById('aiStatusBadge');
-        if (badge) {
-            if (status.api_key_set) {
-                badge.className = 'ai-status connected';
-                badge.innerHTML = `<span class="dot"></span> AI 연결됨 (${status.model}) | 샘플 ${status.sample_count}개`;
-            } else {
-                badge.className = 'ai-status disconnected';
-                badge.innerHTML = '<span class="dot"></span> AI 미연결 — config.json에 API 키를 입력하세요';
-            }
-        }
-    } catch (e) { console.log('status check failed'); }
-})();
+// ── 초기화 ──────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  checkAIStatus();
+  setupUpload();
+  setupTabs();
+  document.getElementById('resetBtn').addEventListener('click', resetApp);
+  document.getElementById('pptBtn').addEventListener('click', generatePPT);
+});
 
-// ═══════════════════════════════════════════
-// Step 1: 파일 업로드
-// ═══════════════════════════════════════════
+async function checkAIStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const el = document.getElementById('aiStatus');
+    if (d.ai_enabled) {
+      el.innerHTML = '<span class="dot dot-on"></span> AI 연결됨';
+      el.style.color = '#166534';
+    } else {
+      el.innerHTML = '<span class="dot dot-off"></span> AI 미연결 (규칙 기반)';
+    }
+  } catch(e) {}
+}
 
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
+// ── 파일 업로드 ─────────────────────────────
+function setupUpload() {
+  const input = document.getElementById('fileInput');
+  const card  = document.querySelector('.upload-card');
 
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => {
+  input.addEventListener('change', e => {
+    if (e.target.files[0]) uploadFile(e.target.files[0]);
+  });
+
+  // 드래그 앤 드롭
+  card.addEventListener('dragover', e => { e.preventDefault(); card.style.borderColor = 'var(--brand)'; });
+  card.addEventListener('dragleave', () => { card.style.borderColor = ''; });
+  card.addEventListener('drop', e => {
     e.preventDefault();
-    dropZone.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].name.match(/\.xlsx?$/i)) {
-        state.file = files[0];
-        handleFile(files[0]);
-    }
-});
-fileInput.addEventListener('change', e => {
-    if (e.target.files.length > 0) {
-        state.file = e.target.files[0];
-        handleFile(e.target.files[0]);
-    }
-});
-
-function handleFile(file) {
-    dropZone.innerHTML = `
-        <div class="drop-icon">✅</div>
-        <p class="drop-text">${file.name}</p>
-        <p class="drop-hint">${(file.size / 1024).toFixed(0)} KB</p>
-    `;
-    // 바로 분석 시작
-    analyzeData();
+    card.style.borderColor = '';
+    const f = e.dataTransfer.files[0];
+    if (f) uploadFile(f);
+  });
 }
 
-async function analyzeData() {
-    if (!state.file) return;
-    showLoading('데이터 분석 중...');
-    
-    const formData = new FormData();
-    formData.append('file', state.file);
-    
-    const sheetSelect = document.getElementById('sheetSelect');
-    if (sheetSelect.value) {
-        formData.append('sheet', sheetSelect.value);
-    }
-    
-    try {
-        const res = await fetch('/api/upload', { method: 'POST', body: formData });
-        const data = await res.json();
-        
-        if (res.ok) {
-            state.sessionId = data.session_id;
-            showAnalysis(data.summary, data.ai_result);
-        } else {
-            alert('분석 실패: ' + (data.detail || '알 수 없는 오류'));
-        }
-    } catch (err) {
-        alert('서버 연결 실패: ' + err.message);
-    } finally {
-        hideLoading();
-    }
+async function uploadFile(file) {
+  showProgress('파일 분석 중...', 20);
+
+  const fd = new FormData();
+  fd.append('file', file);
+  // sheet 미지정 → 전체 시트 자동 분석
+
+  try {
+    showProgress('시트 파싱 중...', 40);
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '업로드 실패');
+
+    showProgress('정성 문항 분석 중...', 70);
+    sessionId = d.session_id;
+
+    // 정성 데이터 그룹핑 요청
+    const gr = await fetch(`/api/analyze_qual/${sessionId}`);
+    const gd = gr.ok ? await gr.json() : {};
+
+    showProgress('완료!', 100);
+    analysisData = { ...d, qual: gd };
+    setTimeout(() => renderDashboard(d, gd), 400);
+
+  } catch(e) {
+    alert('오류: ' + e.message);
+    hideProgress();
+  }
 }
 
-// ═══════════════════════════════════════════
-// Step 2: AI 분석 결과
-// ═══════════════════════════════════════════
+function showProgress(text, pct) {
+  document.getElementById('uploadProgress').style.display = 'block';
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = text;
+}
+function hideProgress() {
+  document.getElementById('uploadProgress').style.display = 'none';
+}
 
-function showAnalysis(summary, aiResult) {
-    showStep(2);
-    
-    // 데이터 요약
-    const summaryHtml = `
-        <div class="summary-item"><span class="summary-label">고객사</span><span class="summary-value">${summary.company}</span></div>
-        <div class="summary-item"><span class="summary-label">과정명</span><span class="summary-value">${summary.course_name}</span></div>
-        <div class="summary-item"><span class="summary-label">문항 수</span><span class="summary-value">${summary.total_questions}개</span></div>
-        <div class="summary-item"><span class="summary-label">카테고리</span><span class="summary-value">${summary.categories}개</span></div>
-        <div class="summary-item"><span class="summary-label">모듈</span><span class="summary-value">${summary.has_modules ? '✅ 있음' : '❌ 없음'}</span></div>
-        <div class="summary-item"><span class="summary-label">강사</span><span class="summary-value">${summary.num_instructors}명</span></div>
-        <div class="summary-item"><span class="summary-label">주관식</span><span class="summary-value">${summary.open_ended_count}개</span></div>
-        <div class="summary-item"><span class="summary-label">응답인원</span><span class="summary-value">${summary.response_count}명</span></div>
-        <div class="summary-item"><span class="summary-label">전체 평균</span><span class="summary-value" style="color: ${summary.overall_average >= 4.5 ? 'var(--success)' : summary.overall_average >= 4.0 ? 'var(--warning)' : 'var(--danger)'}">${summary.overall_average}점</span></div>
-    `;
-    document.getElementById('dataSummary').innerHTML = summaryHtml;
-    
-    // AI 추론 결과
-    const matched = aiResult.matched_pattern || '규칙 기반';
-    const matchedSample = aiResult.matched_sample || '';
-    const similarity = aiResult.similarity ? `(유사도 ${Math.round(aiResult.similarity * 100)}%)` : '';
-    const reasoning = aiResult.reasoning || '';
-    const suggestions = (aiResult.additional_suggestions || []).map(s => `<li>${s}</li>`).join('');
-    
-    let aiHtml = '';
-    if (matchedSample) {
-        aiHtml += `<div class="summary-item">
-            <span class="summary-label">디자인 베이스</span>
-            <span class="summary-value" style="font-size:12px;max-width:250px;overflow:hidden;text-overflow:ellipsis">📋 ${matchedSample}</span>
-        </div>`;
+// ── 대시보드 렌더링 ──────────────────────────
+function renderDashboard(d, gd) {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+
+  const s = d.summary;
+  const multi = d.multi_result;
+
+  // 과정 헤더
+  document.getElementById('courseTitle').textContent =
+    `${s.company} ${s.course_name}`.trim() || '교육 과정';
+  document.getElementById('courseMeta').textContent =
+    `응답 인원 ${s.response_count}명  •  문항 ${s.total_questions}개  •  평균 ${s.overall_average}점`;
+
+  // 차수 배지
+  const badgesEl = document.getElementById('sessionBadges');
+  badgesEl.innerHTML = '';
+  if (s.multi_session && s.sessions_info) {
+    s.sessions_info.forEach(si => {
+      const b = document.createElement('span');
+      b.className = 'session-badge';
+      b.textContent = `${si.label} (${si.response_count}명)`;
+      badgesEl.appendChild(b);
+    });
+    const total = document.createElement('span');
+    total.className = 'session-badge';
+    total.style.background = 'rgba(255,255,255,.35)';
+    total.textContent = `종합 ${s.response_count}명`;
+    badgesEl.appendChild(total);
+  }
+
+  renderOverviewTab(d);
+  renderQuantTab(d);
+  renderQualTab(gd);
+}
+
+// ── 탭: 개요 ─────────────────────────────────
+function renderOverviewTab(d) {
+  const s = d.summary;
+  const multi = d.multi_result || {};
+  const sessions = multi.sessions || [];
+
+  // 기본 정보 테이블
+  const rows = [
+    ['고객사', s.company || '-'],
+    ['과정명', s.course_name || '-'],
+    ['총 응답 인원', `${s.response_count}명`],
+    ['전체 평균', `${s.overall_average}점 / 5점`],
+    ['문항 수', `${s.total_questions}개`],
+    ['영역 수', `${s.categories}개 (${s.category_names.join(', ')})`],
+    ['주관식 문항', `${s.open_ended_count}개`],
+    ['차수 구분', s.multi_session ? `${s.session_count}차수` : '단일'],
+  ];
+
+  if (s.multi_session && s.sessions_info) {
+    s.sessions_info.forEach(si => {
+      rows.push([si.label, `응답 ${si.response_count}명 / 평균 ${si.overall_average?.toFixed(2) || '-'}점`]);
+    });
+  }
+
+  document.getElementById('overviewBody').innerHTML = rows.map(([k,v]) =>
+    `<tr><td>${k}</td><td>${v}</td></tr>`
+  ).join('');
+
+  // 통계 카드
+  const tier = s.overall_tier;
+  const tierColor = tier === '상' ? '#10b981' : tier === '중' ? '#f59e0b' : '#ef4444';
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-value">${s.overall_average}</div>
+      <div class="stat-label">전체 평균 (/ 5점)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:${tierColor}">${tier || '-'}</div>
+      <div class="stat-label">만족도 등급</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${s.response_count}</div>
+      <div class="stat-label">총 응답 인원</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${s.session_count || 1}</div>
+      <div class="stat-label">차수</div>
+    </div>
+  `;
+}
+
+// ── 탭: 정량 평가 ────────────────────────────
+function renderQuantTab(d) {
+  const s = d.summary;
+  const multi = d.multi_result || {};
+  const sessions = multi.sessions || [];
+  const combined = multi.combined || {};
+
+  // 차수 서브탭 생성
+  const tabsEl = document.getElementById('sessionTabs');
+  tabsEl.innerHTML = '';
+
+  const allSessions = [];
+  if (sessions.length > 1) {
+    sessions.forEach((sess, i) => {
+      allSessions.push({ label: sess.session_label || sess.sheet_name, data: sess });
+    });
+    allSessions.push({ label: '종합', data: combined });
+  }
+
+  if (allSessions.length > 0) {
+    allSessions.forEach((sess, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'session-tab' + (i === allSessions.length - 1 ? ' active' : '');
+      btn.textContent = sess.label;
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.session-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderQuantData(sess.data, sess.label, sessions);
+      });
+      tabsEl.appendChild(btn);
+    });
+    // 초기: 종합 표시
+    renderQuantData(combined, '종합', sessions);
+  } else {
+    renderQuantData(combined.questions ? combined : d, s.course_name, []);
+  }
+
+  // 차수 비교 (멀티세션)
+  if (sessions.length > 1) {
+    renderSessionCompare(sessions, combined);
+  }
+}
+
+function renderQuantData(data, label, sessions) {
+  const cats = data.categories || [];
+  const qs = data.questions || [];
+  const resp = data.response_count || 0;
+
+  document.getElementById('quantSummaryTitle').textContent = `정량 평가 종합 — ${label}`;
+
+  // 영역별 요약 표
+  const summaryBody = document.getElementById('quantSummaryBody');
+  summaryBody.innerHTML = cats.map(c => {
+    const cls = scoreClass(c.avg);
+    return `<tr>
+      <td>${c.name}</td>
+      <td><span class="score-badge ${cls}">${c.avg.toFixed(2)}</span></td>
+      <td class="tier-${tierLabel(c.avg)}">${tierLabel(c.avg)}</td>
+    </tr>`;
+  }).join('');
+
+  // 문항별 상세 표
+  const detailBody = document.getElementById('quantDetailBody');
+  detailBody.innerHTML = qs.map((q, i) => {
+    const cls = scoreClass(q.avg);
+    return `<tr>
+      <td style="color:var(--gray-500)">${q.id || i+1}</td>
+      <td>${q.label}</td>
+      <td><span class="score-badge ${cls}">${q.avg.toFixed(2)}</span></td>
+      <td>${q.count || resp}명</td>
+    </tr>`;
+  }).join('');
+
+  // 차트 렌더링
+  renderSummaryChart(cats);
+  renderDetailChart(qs);
+}
+
+function renderSummaryChart(cats) {
+  if (charts.summary) charts.summary.destroy();
+  const ctx = document.getElementById('summaryChart').getContext('2d');
+  charts.summary = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: cats.map(c => c.name),
+      datasets: [{
+        label: '영역별 평균',
+        data: cats.map(c => c.avg),
+        backgroundColor: cats.map(c => scoreColor(c.avg)),
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 3, max: 5, grid: { color: '#f1f5f9' } },
+        x: { grid: { display: false } }
+      }
     }
-    aiHtml += `<div class="summary-item">
-        <span class="summary-label">추론 방식</span>
-        <span class="summary-value">${matched} ${similarity}</span>
-    </div>`;
-    if (reasoning) aiHtml += `<div class="ai-reasoning">${reasoning}</div>`;
-    if (suggestions) aiHtml += `<ul style="margin-top:12px;padding-left:20px;font-size:13px;color:var(--text-secondary)">${suggestions}</ul>`;
-    
-    document.getElementById('aiResult').innerHTML = aiHtml;
-    
-    // 슬라이드 구성
-    const slides = aiResult.recommended_slides || [];
-    const chipsHtml = slides.map(s => {
-        let cls = '';
-        if (s.type?.includes('exec')) cls = 'exec';
-        else if (s.type?.includes('quant')) cls = 'quant';
-        else if (s.type?.includes('qual')) cls = 'qual';
-        return `<div class="slide-chip ${cls}">📄 ${s.title || s.type}</div>`;
+  });
+}
+
+function renderDetailChart(qs) {
+  if (charts.detail) charts.detail.destroy();
+  const ctx = document.getElementById('detailChart').getContext('2d');
+  charts.detail = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: qs.map(q => q.label.length > 14 ? q.label.slice(0,14)+'…' : q.label),
+      datasets: [{
+        label: '문항별 평균',
+        data: qs.map(q => q.avg),
+        backgroundColor: qs.map(q => scoreColor(q.avg) + 'cc'),
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 3, max: 5, grid: { color: '#f1f5f9' } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderSessionCompare(sessions, combined) {
+  document.getElementById('sessionCompareCard').style.display = 'block';
+  const labels = sessions.map(s => s.session_label || s.sheet_name);
+  const cats = (combined.categories || []).filter(c => c.per_session);
+
+  // 차수 비교 차트
+  if (charts.session) charts.session.destroy();
+  const ctx = document.getElementById('sessionChart').getContext('2d');
+  const colors = ['#2563eb','#0ea5e9','#10b981','#f59e0b','#8b5cf6'];
+  charts.session = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels.concat(['종합']),
+      datasets: cats.slice(0, 5).map((c, i) => ({
+        label: c.name,
+        data: labels.map(l => c.per_session?.[l] || 0).concat([c.avg]),
+        backgroundColor: colors[i % colors.length] + 'bb',
+        borderRadius: 4,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        y: { min: 3, max: 5 },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // 차수 비교 표
+  const head = document.getElementById('sessionCompareHead');
+  head.innerHTML = `<tr><th>영역</th>${labels.map(l=>`<th>${l}</th>`).join('')}<th>종합</th></tr>`;
+
+  const body = document.getElementById('sessionCompareBody');
+  body.innerHTML = cats.map(c => {
+    const cells = labels.map(l => {
+      const v = c.per_session?.[l];
+      return v ? `<td><span class="score-badge ${scoreClass(v)}">${v.toFixed(2)}</span></td>` : '<td>-</td>';
     }).join('');
-    document.getElementById('slideStructure').innerHTML = `<div class="slide-chips">${chipsHtml}</div>`;
+    return `<tr><td>${c.name}</td>${cells}<td><span class="score-badge ${scoreClass(c.avg)}">${c.avg.toFixed(2)}</span></td></tr>`;
+  }).join('');
 }
 
-// ═══════════════════════════════════════════
-// Step 3: 보고서 생성 + 미리보기
-// ═══════════════════════════════════════════
+// ── 탭: 정성 평가 ────────────────────────────
+function renderQualTab(gd) {
+  const container = document.getElementById('qualContent');
+  const emptyEl = document.getElementById('qualEmpty');
+  container.innerHTML = '';
 
-async function generateReport() {
-    showLoading('보고서 생성 중...');
-    
-    try {
-        const res = await fetch(`/api/generate/${state.sessionId}`, { method: 'POST' });
-        const data = await res.json();
-        
-        if (data.success) {
-            state.preview = data.preview;
-            state.currentSlide = 0;
-            showStep(3);
-            renderPreview();
-            renderReview(data.review);
-        } else {
-            alert('생성 실패: ' + data.error);
-        }
-    } catch (err) {
-        alert('서버 오류: ' + err.message);
-    } finally {
-        hideLoading();
+  const items = gd.open_ended_grouped || [];
+  if (!items.length) {
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  items.forEach(oe => {
+    const common = (oe.groups || []).filter(g => g.is_common);
+    const indiv  = (oe.groups || []).filter(g => !g.is_common);
+    const totalCount = oe.answers?.length || 0;
+
+    const card = document.createElement('div');
+    card.className = 'qual-question-card';
+
+    // 헤더
+    card.innerHTML = `
+      <div class="qual-question-header">
+        <h4>${oe.id ? oe.id + '. ' : ''}${oe.label || '주관식 문항'}</h4>
+        <span class="qual-count">총 ${totalCount}건 / 공통응답 ${common.length}그룹</span>
+      </div>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'qual-body';
+
+    // 공통응답 (2건 이상)
+    if (common.length > 0) {
+      common.forEach(g => {
+        const div = document.createElement('div');
+        div.className = 'common-group';
+        div.innerHTML = `
+          <div class="common-group-label">${g.common_id}</div>
+          <div class="common-group-text">${g.label}</div>
+          <div class="common-group-count">(${g.count}건)</div>
+          <div class="common-group-answers">
+            ${g.answers.map(a => `<div class="individual-answer">${a}</div>`).join('')}
+          </div>
+        `;
+        body.appendChild(div);
+      });
     }
-}
 
-function renderPreview() {
-    const slides = state.preview;
-    if (!slides.length) return;
-    
-    // 썸네일
-    const thumbs = slides.map((s, i) => `
-        <div class="thumbnail ${i === state.currentSlide ? 'active' : ''}" onclick="goToSlide(${i})">
-            <div class="thumbnail-num">S${s.index}</div>
-            <div class="thumbnail-title">${(s.title || s.layout).substring(0, 10)}</div>
-        </div>
-    `).join('');
-    document.getElementById('slideThumbnails').innerHTML = thumbs;
-    
-    // 카운터
-    document.getElementById('slideCounter').textContent = `${state.currentSlide + 1} / ${slides.length}`;
-    
-    // 슬라이드 내용
-    renderSlideContent(slides[state.currentSlide]);
-}
-
-function renderSlideContent(slide) {
-    let html = '';
-    html += `<div class="slide-layout-badge">${slide.layout}</div>`;
-    
-    if (slide.title) {
-        html += `<div class="slide-title">${slide.title}</div>`;
+    // 개별 응답 (1건)
+    if (indiv.length > 0) {
+      if (common.length > 0) {
+        const sep = document.createElement('div');
+        sep.style.cssText = 'margin: 12px 0 8px; font-size:12px; color:var(--gray-500); font-weight:600;';
+        sep.textContent = '▸ 개별 응답';
+        body.appendChild(sep);
+      }
+      indiv.forEach(g => {
+        const div = document.createElement('div');
+        div.className = 'individual-answer';
+        div.textContent = g.label;
+        body.appendChild(div);
+      });
     }
-    
-    // 텍스트
-    const otherTexts = (slide.texts || []).filter(t => t !== slide.title).slice(0, 5);
-    if (otherTexts.length) {
-        html += otherTexts.map(t => `<p style="margin:6px 0;color:var(--text-secondary);font-size:13px">${escapeHtml(t)}</p>`).join('');
+
+    if (!common.length && !indiv.length) {
+      body.innerHTML = '<div class="individual-answer" style="color:var(--gray-500)">응답 없음</div>';
     }
-    
-    // 표
-    for (const tbl of (slide.tables || [])) {
-        html += `<p style="margin:12px 0 6px;font-size:12px;color:var(--text-muted)">${tbl.name} (${tbl.size})</p>`;
-        html += '<table class="preview-table"><thead><tr>';
-        if (tbl.rows.length > 0) {
-            html += tbl.rows[0].map(c => `<th>${escapeHtml(c)}</th>`).join('');
-            html += '</tr></thead><tbody>';
-            for (let r = 1; r < Math.min(tbl.rows.length, 8); r++) {
-                html += '<tr>' + tbl.rows[r].map(c => `<td>${escapeHtml(c)}</td>`).join('') + '</tr>';
-            }
-            if (tbl.rows.length > 8) {
-                html += `<tr><td colspan="${tbl.rows[0].length}" style="text-align:center;color:var(--text-muted)">... ${tbl.rows.length - 8}행 더</td></tr>`;
-            }
-            html += '</tbody>';
-        }
-        html += '</table>';
+
+    card.appendChild(body);
+
+    // 복사 버튼
+    const copyRow = document.createElement('div');
+    copyRow.className = 'qual-copy-row';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = '📋 복사';
+    copyBtn.addEventListener('click', () => copyQualText(oe, common, indiv, copyBtn));
+    copyRow.appendChild(copyBtn);
+    card.appendChild(copyRow);
+
+    container.appendChild(card);
+  });
+}
+
+function copyQualText(oe, common, indiv, btn) {
+  let text = `[${oe.id || ''}] ${oe.label || ''}\n${'─'.repeat(40)}\n`;
+  if (common.length) {
+    common.forEach(g => {
+      text += `\n${g.common_id}: ${g.label} (${g.count}건)\n`;
+      g.answers.forEach(a => { text += `  • ${a}\n`; });
+    });
+  }
+  if (indiv.length) {
+    text += '\n▸ 개별 응답\n';
+    indiv.forEach(g => { text += `  • ${g.label}\n`; });
+  }
+  copyToClipboard(text, btn);
+}
+
+// ── 복사 유틸 ────────────────────────────────
+function setupCopyButtons() {
+  document.querySelectorAll('.copy-btn[data-target]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.target);
+      if (!target) return;
+      const text = tableToText(target);
+      copyToClipboard(text, btn);
+    });
+  });
+}
+
+function tableToText(table) {
+  const rows = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const cells = [...tr.querySelectorAll('th,td')].map(c => c.innerText.trim());
+    rows.push(cells.join('\t'));
+  });
+  return rows.join('\n');
+}
+
+function copyToClipboard(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✅ 복사됨';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+// ── 탭 전환 ──────────────────────────────────
+function setupTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      // 탭 전환 후 copy 버튼 연결
+      setTimeout(setupCopyButtons, 50);
+    });
+  });
+}
+
+// ── 리셋 ─────────────────────────────────────
+function resetApp() {
+  sessionId = null;
+  analysisData = null;
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('uploadSection').style.display = 'flex';
+  document.getElementById('fileInput').value = '';
+  hideProgress();
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+  charts = {};
+}
+
+// ── 헬퍼 ─────────────────────────────────────
+function scoreClass(v) {
+  if (v >= 4.5) return 'score-high';
+  if (v >= 4.0) return 'score-mid';
+  return 'score-low';
+}
+function scoreColor(v) {
+  if (v >= 4.5) return '#10b981';
+  if (v >= 4.0) return '#2563eb';
+  return '#f59e0b';
+}
+function tierLabel(v) {
+  if (v >= 4.5) return '상';
+  if (v >= 4.0) return '중';
+  return '하';
+}
+
+// ── PPT 보고서 생성 ──────────────────────────
+async function generatePPT() {
+  if (!sessionId) return;
+  const btn = document.getElementById('pptBtn');
+  btn.textContent = '⏳ 생성 중...';
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`/api/generate/${sessionId}`, { method: 'POST' });
+    const d = await r.json();
+
+    if (d.success) {
+      // 자동 다운로드
+      const a = document.createElement('a');
+      a.href = `/api/download/${sessionId}`;
+      a.download = d.output_file || 'report.pptx';
+      a.click();
+      btn.textContent = '✅ 다운로드 완료';
+      setTimeout(() => {
+        btn.textContent = '📥 PPT 보고서 생성';
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }, 2500);
+    } else {
+      alert('PPT 생성 실패: ' + (d.error || '알 수 없는 오류'));
+      btn.textContent = '📥 PPT 보고서 생성';
+      btn.classList.remove('loading');
+      btn.disabled = false;
     }
-    
-    // 차트
-    for (const chart of (slide.charts || [])) {
-        html += `<div class="chart-bar-container">`;
-        const maxVal = Math.max(...(chart.values || [1]), 5);
-        (chart.values || []).forEach((v, i) => {
-            const pct = (v / 5) * 100;
-            const color = v >= 4.5 ? '#10b981' : v >= 4.0 ? '#6366f1' : '#ef4444';
-            html += `
-                <div class="chart-bar-item">
-                    <span class="chart-bar-label">Q${i+1}</span>
-                    <div class="chart-bar" style="width:${pct}%;background:${color}"></div>
-                    <span class="chart-bar-value">${v.toFixed(2)}</span>
-                </div>`;
-        });
-        html += '</div>';
-    }
-    
-    // 그룹
-    for (const grp of (slide.groups || [])) {
-        html += `<div class="preview-group">`;
-        if (grp[0]) html += `<div class="preview-group-title">${escapeHtml(grp[0]).substring(0, 50)}</div>`;
-        if (grp[1]) html += `<div class="preview-group-text">${escapeHtml(grp[1]).substring(0, 200)}</div>`;
-        html += '</div>';
-    }
-    
-    if (!html.trim() || html.length < 100) {
-        html += `<p style="text-align:center;color:var(--text-muted);padding:40px">이미지/도형 슬라이드</p>`;
-    }
-    
-    document.getElementById('slideContent').innerHTML = html;
+  } catch(e) {
+    alert('오류: ' + e.message);
+    btn.textContent = '📥 PPT 보고서 생성';
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
 }
 
-function goToSlide(idx) {
-    state.currentSlide = idx;
-    renderPreview();
-}
-
-function prevSlide() {
-    if (state.currentSlide > 0) { state.currentSlide--; renderPreview(); }
-}
-
-function nextSlide() {
-    if (state.currentSlide < state.preview.length - 1) { state.currentSlide++; renderPreview(); }
-}
-
-// ═══════════════════════════════════════════
-// 검증 결과
-// ═══════════════════════════════════════════
-
-function renderReview(review) {
-    if (!review) return;
-    
-    const scoreColor = review.score >= 80 ? 'var(--success)' : review.score >= 50 ? 'var(--warning)' : 'var(--danger)';
-    let html = `<div class="review-score" style="color:${scoreColor}">${review.score}점</div>`;
-    
-    for (const check of (review.checks || [])) {
-        const icon = check.status === 'pass' ? '✅' : check.status === 'warn' ? '⚠️' : '❌';
-        const cls = `check-${check.status}`;
-        html += `<div class="check-item ${cls}">${icon} ${check.detail}</div>`;
-    }
-    
-    document.getElementById('reviewResult').innerHTML = html;
-}
-
-// ═══════════════════════════════════════════
-// 수정 요청
-// ═══════════════════════════════════════════
-
-async function sendModification() {
-    const input = document.getElementById('modifyInput');
-    const msg = input.value.trim();
-    if (!msg) return;
-    
-    addChatMessage(msg, 'user');
-    input.value = '';
-    
-    try {
-        const res = await fetch(`/api/modify/${state.sessionId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: msg }),
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-            const detail = data.modification?.detail || '수정 반영됨';
-            addChatMessage(`✅ ${detail}`, 'ai');
-            state.preview = data.preview;
-            renderPreview();
-        }
-    } catch (err) {
-        addChatMessage('오류: ' + err.message, 'ai');
-    }
-}
-
-function addChatMessage(text, type) {
-    const container = document.getElementById('chatMessages');
-    container.innerHTML += `<div class="chat-msg ${type}">${escapeHtml(text)}</div>`;
-    container.scrollTop = container.scrollHeight;
-}
-
-// ═══════════════════════════════════════════
-// 다운로드 / 재생성
-// ═══════════════════════════════════════════
-
-function downloadReport() {
-    if (!state.sessionId) return;
-    window.location.href = `/api/download/${state.sessionId}`;
-}
-
-async function regenerate() {
-    await generateReport();
-}
-
-// ═══════════════════════════════════════════
-// 샘플 관리
-// ═══════════════════════════════════════════
-
-function showSamples() {
-    document.getElementById('sampleModal').classList.remove('hidden');
-    loadSamples();
-}
-
-function closeSamples() {
-    document.getElementById('sampleModal').classList.add('hidden');
-}
-
-async function loadSamples() {
-    try {
-        const res = await fetch('/api/samples');
-        const patterns = await res.json();
-        
-        const html = patterns.map(p => `
-            <div class="sample-item">
-                <span>${p.name}</span>
-                <span style="color:var(--text-muted)">${p.slide_count}슬라이드 | Exec:${p.counts?.exec_slides || 0} Quant:${p.counts?.quant_slides || 0}</span>
-            </div>
-        `).join('');
-        document.getElementById('sampleList').innerHTML = html || '<p style="color:var(--text-muted);text-align:center">등록된 샘플 없음</p>';
-    } catch (err) {
-        console.error(err);
-    }
-}
-
-const sampleDrop = document.getElementById('sampleDropZone');
-const sampleInput = document.getElementById('sampleInput');
-sampleDrop.addEventListener('click', () => sampleInput.click());
-sampleDrop.addEventListener('dragover', e => { e.preventDefault(); sampleDrop.classList.add('dragover'); });
-sampleDrop.addEventListener('dragleave', () => sampleDrop.classList.remove('dragover'));
-sampleDrop.addEventListener('drop', async e => {
-    e.preventDefault();
-    sampleDrop.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-        const formData = new FormData();
-        formData.append('file', files[0]);
-        showLoading('샘플 분석 중...');
-        try {
-            await fetch('/api/samples/add', { method: 'POST', body: formData });
-            await loadSamples();
-        } catch (err) { alert(err.message); }
-        hideLoading();
-    }
-});
-
-// ═══════════════════════════════════════════
-// 유틸
-// ═══════════════════════════════════════════
-
-function showStep(num) {
-    document.querySelectorAll('.step').forEach(s => s.classList.add('hidden'));
-    document.getElementById(`step-${['', 'upload', 'analysis', 'preview'][num]}`).classList.remove('hidden');
-}
-
-function goBack(step) { showStep(step); }
-function showLoading(text) { document.getElementById('loadingText').textContent = text; document.getElementById('loading').classList.remove('hidden'); }
-function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
-function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
-
-// 키보드 단축키
-document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft') prevSlide();
-    if (e.key === 'ArrowRight') nextSlide();
-});

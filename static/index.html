@@ -1,150 +1,168 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HRD 만족도 결과보고서 생성기</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HRD 결과보고서 데이터 분석기 | Expert Consulting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="app">
-        <!-- 헤더 -->
-        <header class="header">
-            <div class="header-left">
-                <div class="logo">📊</div>
-                <div>
-                    <h1>HRD 결과보고서 생성기</h1>
-                    <p class="subtitle">AI 기반 만족도 보고서 자동 생성</p>
-                </div>
-            </div>
-            <div class="header-right">
-                <button class="btn-ghost" onclick="showSamples()">📁 샘플 관리</button>
-            </div>
-        </header>
 
-        <!-- AI 상태 배지 -->
-        <div id="aiStatusBadge" class="ai-status disconnected">
-            <span class="dot"></span> 상태 확인 중...
+<!-- HEADER -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">📊</span>
+      <div>
+        <div class="logo-title">HRD 결과보고서 분석기</div>
+        <div class="logo-sub">Expert Consulting</div>
+      </div>
+    </div>
+    <div class="header-status" id="aiStatus">
+      <span class="dot dot-off"></span> AI 미연결
+    </div>
+  </div>
+</header>
+
+<!-- UPLOAD ZONE -->
+<section class="upload-section" id="uploadSection">
+  <div class="upload-card">
+    <div class="upload-icon">📂</div>
+    <h2>로우데이터 엑셀 업로드</h2>
+    <p>시트마다 차수가 구분된 만족도 로우데이터를 업로드하세요.<br>모든 시트를 자동으로 분석합니다.</p>
+    <label class="upload-btn" for="fileInput">
+      파일 선택 (xlsx, xls)
+      <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
+    </label>
+    <div class="upload-progress" id="uploadProgress" style="display:none">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText">분석 중...</div>
+    </div>
+  </div>
+</section>
+
+<!-- MAIN DASHBOARD -->
+<main class="dashboard" id="dashboard" style="display:none">
+
+  <!-- 과정 헤더 -->
+  <div class="course-header" id="courseHeader">
+    <div class="course-title-area">
+      <h1 id="courseTitle">과정명</h1>
+      <div class="course-meta" id="courseMeta"></div>
+    </div>
+    <div class="session-badges" id="sessionBadges"></div>
+    <div class="header-actions">
+      <button class="ppt-btn" id="pptBtn">📥 PPT 보고서 생성</button>
+      <button class="reset-btn" id="resetBtn">새 파일</button>
+    </div>
+  </div>
+
+  <!-- TAB NAV -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="overview">📋 개요</button>
+    <button class="tab-btn" data-tab="quant">📊 정량 평가</button>
+    <button class="tab-btn" data-tab="qual">💬 정성 평가</button>
+  </nav>
+
+  <!-- TAB: 개요 -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="section-card">
+      <div class="section-header">
+        <h3>과정 개요</h3>
+        <button class="copy-btn" data-target="overviewTable">복사</button>
+      </div>
+      <table class="info-table" id="overviewTable">
+        <tbody id="overviewBody"></tbody>
+      </table>
+    </div>
+    <div class="stats-grid" id="statsGrid"></div>
+  </div>
+
+  <!-- TAB: 정량 평가 -->
+  <div class="tab-content" id="tab-quant">
+    <!-- 차수 선택 탭 -->
+    <div class="session-tabs" id="sessionTabs"></div>
+
+    <!-- 종합 현황 -->
+    <div class="section-card" id="quantSummaryCard">
+      <div class="section-header">
+        <h3 id="quantSummaryTitle">정량 평가 종합</h3>
+        <button class="copy-btn" data-target="quantSummaryTable">복사</button>
+      </div>
+      <div class="chart-table-wrap">
+        <div class="chart-wrap">
+          <canvas id="summaryChart"></canvas>
         </div>
-
-        <!-- 메인 컨텐츠 -->
-        <main class="main">
-            <!-- Step 1: 업로드 -->
-            <section id="step-upload" class="step active">
-                <div class="step-header">
-                    <span class="step-num">1</span>
-                    <h2>엑셀 데이터 업로드</h2>
-                </div>
-                <div class="drop-zone" id="dropZone">
-                    <div class="drop-icon">📂</div>
-                    <p class="drop-text">엑셀 파일을 끌어다 놓거나 클릭하여 선택</p>
-                    <p class="drop-hint">.xlsx 파일 지원</p>
-                    <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
-                </div>
-                <div id="sheetSelector" class="sheet-selector hidden">
-                    <label>시트 선택:</label>
-                    <select id="sheetSelect"></select>
-                    <button class="btn-primary" onclick="analyzeData()">🔍 AI 분석 시작</button>
-                </div>
-            </section>
-
-            <!-- Step 2: AI 분석 결과 -->
-            <section id="step-analysis" class="step hidden">
-                <div class="step-header">
-                    <span class="step-num">2</span>
-                    <h2>AI 분석 결과</h2>
-                </div>
-                <div class="analysis-grid">
-                    <div class="card summary-card">
-                        <h3>📋 데이터 요약</h3>
-                        <div id="dataSummary"></div>
-                    </div>
-                    <div class="card ai-card">
-                        <h3>🤖 AI 추론 결과</h3>
-                        <div id="aiResult"></div>
-                    </div>
-                </div>
-                <div class="card slides-card">
-                    <h3>📑 권장 슬라이드 구성</h3>
-                    <div id="slideStructure"></div>
-                </div>
-                <div class="action-bar">
-                    <button class="btn-secondary" onclick="goBack(1)">← 다시 업로드</button>
-                    <button class="btn-primary btn-large" onclick="generateReport()">
-                        ✨ 보고서 생성하기
-                    </button>
-                </div>
-            </section>
-
-            <!-- Step 3: 미리보기 + 수정 -->
-            <section id="step-preview" class="step hidden">
-                <div class="step-header">
-                    <span class="step-num">3</span>
-                    <h2>보고서 미리보기 & 검토</h2>
-                </div>
-                <div class="preview-layout">
-                    <div class="preview-main">
-                        <div class="slide-viewer">
-                            <div class="slide-nav">
-                                <button class="btn-icon" onclick="prevSlide()">◀</button>
-                                <span id="slideCounter">1 / 1</span>
-                                <button class="btn-icon" onclick="nextSlide()">▶</button>
-                            </div>
-                            <div class="slide-content" id="slideContent"></div>
-                        </div>
-                        <div class="slide-thumbnails" id="slideThumbnails"></div>
-                    </div>
-                    <div class="preview-sidebar">
-                        <div class="card review-card">
-                            <h3>✅ AI 검증 결과</h3>
-                            <div id="reviewResult"></div>
-                        </div>
-                        <div class="card chat-card">
-                            <h3>💬 수정 요청</h3>
-                            <div class="chat-messages" id="chatMessages"></div>
-                            <div class="chat-input">
-                                <input type="text" id="modifyInput" placeholder="수정 사항을 입력하세요..."
-                                       onkeydown="if(event.key==='Enter') sendModification()">
-                                <button class="btn-primary" onclick="sendModification()">전송</button>
-                            </div>
-                        </div>
-                        <div class="action-buttons">
-                            <button class="btn-secondary" onclick="regenerate()">🔄 재생성</button>
-                            <button class="btn-primary btn-large" onclick="downloadReport()">
-                                📥 PPT 다운로드
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- 샘플 모달 -->
-        <div id="sampleModal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>📁 샘플 보고서 관리</h2>
-                    <button class="btn-icon" onclick="closeSamples()">✕</button>
-                </div>
-                <div class="modal-body">
-                    <div class="drop-zone drop-zone-small" id="sampleDropZone">
-                        <p>새 샘플 PPT를 끌어다 놓으세요</p>
-                        <input type="file" id="sampleInput" accept=".pptx" hidden>
-                    </div>
-                    <div id="sampleList"></div>
-                </div>
-            </div>
+        <div class="table-wrap">
+          <table class="score-table" id="quantSummaryTable">
+            <thead>
+              <tr>
+                <th>영역</th>
+                <th>평균</th>
+                <th>평가</th>
+              </tr>
+            </thead>
+            <tbody id="quantSummaryBody"></tbody>
+          </table>
         </div>
-
-        <!-- 로딩 -->
-        <div id="loading" class="loading hidden">
-            <div class="spinner"></div>
-            <p id="loadingText">분석 중...</p>
-        </div>
+      </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <!-- 문항별 상세 -->
+    <div class="section-card">
+      <div class="section-header">
+        <h3>문항별 상세 결과</h3>
+        <button class="copy-btn" data-target="quantDetailTable">복사</button>
+      </div>
+      <div class="chart-wrap wide">
+        <canvas id="detailChart"></canvas>
+      </div>
+      <table class="score-table" id="quantDetailTable">
+        <thead>
+          <tr>
+            <th>번호</th>
+            <th>문항</th>
+            <th>평균</th>
+            <th>응답수</th>
+          </tr>
+        </thead>
+        <tbody id="quantDetailBody"></tbody>
+      </table>
+    </div>
+
+    <!-- 차수별 비교 (멀티세션) -->
+    <div class="section-card" id="sessionCompareCard" style="display:none">
+      <div class="section-header">
+        <h3>차수별 비교</h3>
+        <button class="copy-btn" data-target="sessionCompareTable">복사</button>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="sessionChart"></canvas>
+      </div>
+      <table class="score-table" id="sessionCompareTable">
+        <thead id="sessionCompareHead"></thead>
+        <tbody id="sessionCompareBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB: 정성 평가 -->
+  <div class="tab-content" id="tab-qual">
+    <div id="qualLoading" class="loading-msg" style="display:none">
+      <div class="spinner"></div>
+      <span>공통응답 분석 중...</span>
+    </div>
+    <div id="qualContent"></div>
+    <div class="empty-msg" id="qualEmpty" style="display:none">
+      주관식 문항이 없습니다.
+    </div>
+  </div>
+
+</main>
+
+<script src="/static/app.js"></script>
 </body>
 </html>
