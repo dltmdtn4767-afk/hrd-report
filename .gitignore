@@ -7,9 +7,14 @@ __pycache__/
 # 업로드/출력 (클라우드에 올리지 않음)
 uploads/
 output/
+
+# PPT 파일 — 기본 제외
 *.pptx
 
-# 샘플 PPT (용량 크므로 제외 — 로컬에서만 사용)
+# 단, templates/ 폴더의 템플릿은 포함 (Render 배포에 필요)
+!templates/*.pptx
+
+# 샘플은 용량이 크므로 제외
 samples/*.pptx
 
 # 기타
