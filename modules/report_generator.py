@@ -826,13 +826,13 @@ def _update_quantitatives_multi(prs, slide_indices, combined_data, sessions, sam
 def _update_qualitatives_grouped(prs, slide_indices, data, sample_design):
     """
     공통응답 그룹핑 결과를 정성 평가 슬라이드에 삽입
-    - open_ended_grouped 있으면 그룹별 공통응답 표시
-    - 없으면 기존 _update_qualitatives 로직 사용
+    - 2건 이상 공통응답: [공통응답N] 라벨로 묶어서 표시
+    - 1건 개별 응답: 원문 그대로 표시
+    - 없으면 기존 로직 사용
     """
     grouped_oe = data.get("open_ended_grouped")
 
     if not grouped_oe:
-        # 폴백: 기존 로직
         _update_qualitatives(prs, slide_indices, data, sample_design)
         return
 
@@ -841,31 +841,38 @@ def _update_qualitatives_grouped(prs, slide_indices, data, sample_design):
 
     for slide_idx in slide_indices:
         slide = prs.slides[slide_idx]
-        groups_shapes = [s for s in slide.shapes if s.shape_type == 6]  # 그룹 도형
+        groups_shapes = [s for s in slide.shapes if s.shape_type == 6]
 
         for oe_idx, oe in enumerate(grouped_oe):
             groups = oe.get("groups", [])
             if not groups:
                 continue
 
-            # 공통응답 텍스트 구성 (가나다 오름차순 — 이미 정렬됨)
             lines = []
-            for g in groups:
+
+            # ── 공통응답 (2건 이상) 먼저 ──
+            common = [g for g in groups if g.get("is_common")]
+            for g in common:
                 cid = g.get("common_id", "")
                 lbl = g.get("label", "")
                 cnt = g.get("count", 0)
                 lines.append(f"[{cid}] {lbl} ({cnt}건)")
 
+            # ── 개별 응답 (1건) 구분선 후 ──
+            individuals = [g for g in groups if not g.get("is_common")]
+            if individuals:
+                if common:
+                    lines.append("")  # 구분 공백
+                for g in individuals:
+                    lines.append(f"• {g.get('label', '')}")
+
             answer_text = "\n".join(lines) if lines else "(응답 없음)"
             question_text = f"{oe.get('id', '')}. {oe.get('label', '')}"
 
-            # 그룹 도형에 삽입
             if oe_idx < len(groups_shapes):
                 _fill_group_data_text(groups_shapes[oe_idx], question_text, answer_text)
-            else:
-                # 그룹 도형 부족 — 텍스트 박스 추가
-                if groups_shapes:
-                    _fill_group_data_text(groups_shapes[-1], question_text, answer_text)
+            elif groups_shapes:
+                _fill_group_data_text(groups_shapes[-1], question_text, answer_text)
 
 
 def _fill_group_data_text(group_shape, question_text, answer_text):
