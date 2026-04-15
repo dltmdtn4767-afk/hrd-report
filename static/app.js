@@ -224,6 +224,10 @@ function renderQuantData(data, label, sessions) {
   const qs = data.questions || [];
   const resp = data.response_count || 0;
 
+  // 차수 전환 시 선택 초기화
+  selectedIndices.clear();
+  updateSelectionUI();
+
   document.getElementById('quantSummaryTitle').textContent = `정량 평가 종합 — ${label}`;
 
   // 영역별 요약 표
@@ -237,22 +241,14 @@ function renderQuantData(data, label, sessions) {
     </tr>`;
   }).join('');
 
-  // 문항별 상세 표
-  const detailBody = document.getElementById('quantDetailBody');
-  detailBody.innerHTML = qs.map((q, i) => {
-    const cls = scoreClass(q.avg);
-    return `<tr>
-      <td style="color:var(--gray-500)">${q.id || i+1}</td>
-      <td>${q.label}</td>
-      <td><span class="score-badge ${cls}">${q.avg.toFixed(2)}</span></td>
-      <td>${q.count || resp}명</td>
-    </tr>`;
-  }).join('');
+  // 문항별 상세 표 (체크박스 포함)
+  renderDetailBody(qs, resp);
 
   // 차트 렌더링
   renderSummaryChart(cats);
   renderDetailChart(qs);
 }
+
 
 function renderSummaryChart(cats) {
   if (charts.summary) charts.summary.destroy();
@@ -280,9 +276,83 @@ function renderSummaryChart(cats) {
   });
 }
 
+// ── 선택 모드 상태 ──────────────────────────
+let selectMode = false;
+let selectedIndices = new Set();
+let currentQuestions = [];  // 현재 표시 중인 문항 목록
+
+function toggleSelectMode() {
+  selectMode = !selectMode;
+  const btn = document.getElementById('selectModeBtn');
+  const hint = document.getElementById('selectHint');
+  btn.classList.toggle('active', selectMode);
+  hint.style.display = selectMode ? 'block' : 'none';
+  if (!selectMode) {
+    selectedIndices.clear();
+    updateSelectionUI();
+  }
+  // 테이블 체크박스 보이기/숨기기
+  document.querySelectorAll('.row-check, #selectAll').forEach(el => {
+    el.style.display = selectMode ? '' : 'none';
+  });
+  // 차트 재렌더
+  renderDetailChart(currentQuestions);
+}
+
+function toggleSelectAll(cb) {
+  if (cb.checked) {
+    currentQuestions.forEach((_, i) => selectedIndices.add(i));
+  } else {
+    selectedIndices.clear();
+  }
+  document.querySelectorAll('.row-check').forEach((el, i) => {
+    el.checked = cb.checked;
+    el.closest('tr').classList.toggle('selected-row', cb.checked);
+  });
+  updateSelectionUI();
+  renderDetailChart(currentQuestions);
+}
+
+function toggleRowSelect(idx, cb) {
+  if (cb.checked) selectedIndices.add(idx);
+  else selectedIndices.delete(idx);
+  cb.closest('tr').classList.toggle('selected-row', cb.checked);
+  updateSelectionUI();
+  renderDetailChart(currentQuestions);
+}
+
+function updateSelectionUI() {
+  const cnt = selectedIndices.size;
+  const countEl = document.getElementById('selectedCount');
+  const excelBtn = document.getElementById('exportExcelBtn');
+  const clipBtn = document.getElementById('exportClipBtn');
+  if (cnt > 0) {
+    countEl.style.display = 'block';
+    countEl.textContent = `✅ ${cnt}개 문항 선택됨`;
+    excelBtn.style.display = '';
+    clipBtn.style.display = '';
+  } else {
+    countEl.style.display = 'none';
+    excelBtn.style.display = 'none';
+    clipBtn.style.display = 'none';
+  }
+}
+
+// ── 상세 차트 (클릭 선택 지원) ──────────────
 function renderDetailChart(qs) {
+  currentQuestions = qs;
   if (charts.detail) charts.detail.destroy();
   const ctx = document.getElementById('detailChart').getContext('2d');
+
+  const bgColors = qs.map((q, i) =>
+    selectedIndices.has(i)
+      ? '#2563eb'
+      : scoreColor(q.avg) + 'cc'
+  );
+  const borderColors = qs.map((q, i) =>
+    selectedIndices.has(i) ? '#1d4ed8' : 'transparent'
+  );
+
   charts.detail = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -290,21 +360,67 @@ function renderDetailChart(qs) {
       datasets: [{
         label: '문항별 평균',
         data: qs.map(q => q.avg),
-        backgroundColor: qs.map(q => scoreColor(q.avg) + 'cc'),
+        backgroundColor: bgColors,
+        borderColor: borderColors,
+        borderWidth: 2,
         borderRadius: 4,
         borderSkipped: false,
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => qs[items[0].dataIndex]?.label || '',
+            label: (item) => ` 평균: ${item.raw}점`
+              + (selectedIndices.has(item.dataIndex) ? ' ✅' : '')
+          }
+        }
+      },
       scales: {
         y: { min: 3, max: 5, grid: { color: '#f1f5f9' } },
         x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      },
+      onClick: (evt, elements) => {
+        if (!selectMode || !elements.length) return;
+        const idx = elements[0].index;
+        if (selectedIndices.has(idx)) selectedIndices.delete(idx);
+        else selectedIndices.add(idx);
+        // 테이블 체크박스 동기화
+        const checkboxes = document.querySelectorAll('.row-check');
+        if (checkboxes[idx]) {
+          checkboxes[idx].checked = selectedIndices.has(idx);
+          checkboxes[idx].closest('tr').classList.toggle('selected-row', selectedIndices.has(idx));
+        }
+        updateSelectionUI();
+        renderDetailChart(qs);
+      },
+      onHover: (evt) => {
+        evt.native.target.style.cursor = selectMode ? 'pointer' : 'default';
       }
     }
   });
 }
+
+// ── 문항별 상세 표 (체크박스 포함) ──────────
+function renderDetailBody(qs, resp) {
+  const body = document.getElementById('quantDetailBody');
+  body.innerHTML = qs.map((q, i) => {
+    const cls = scoreClass(q.avg);
+    return `<tr data-idx="${i}">
+      <td><input type="checkbox" class="row-check"
+          style="display:${selectMode ? '' : 'none'}"
+          onchange="toggleRowSelect(${i}, this)"></td>
+      <td style="color:var(--gray-500)">${q.id || i+1}</td>
+      <td>${q.label}</td>
+      <td><span class="score-badge ${cls}">${q.avg.toFixed(2)}</span></td>
+      <td>${q.count || resp}명</td>
+    </tr>`;
+  }).join('');
+}
+
 
 function renderSessionCompare(sessions, combined) {
   document.getElementById('sessionCompareCard').style.display = 'block';
@@ -526,7 +642,60 @@ function tierLabel(v) {
   return '하';
 }
 
-// ── PPT 보고서 생성 ──────────────────────────
+// ── PPT 차트용 Excel 내보내기 ─────────────────
+function getSelectedQuestions() {
+  if (selectedIndices.size === 0) return currentQuestions;
+  return [...selectedIndices].sort((a,b) => a-b).map(i => currentQuestions[i]);
+}
+
+function exportToExcel() {
+  const qs = getSelectedQuestions();
+  if (!qs.length) return;
+
+  // PPT 차트 데이터 형식: A열=문항라벨, B열=평균점수
+  const wb = XLSX.utils.book_new();
+
+  // 시트 1: 차트 데이터 (PPT에 바로 붙여넣기 가능)
+  const chartData = [
+    ['문항', '평균점수'],  // 헤더
+    ...qs.map(q => [q.label, q.avg])
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(chartData);
+  ws1['!cols'] = [{ wch: 40 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'PPT차트데이터');
+
+  // 시트 2: 전체 상세 (id, 라벨, 평균, 응답수, 카테고리)
+  const detailData = [
+    ['번호', '문항', '카테고리', '평균', '응답수'],
+    ...qs.map(q => [q.id || '', q.label, q.category || '', q.avg, q.count || ''])
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(detailData);
+  ws2['!cols'] = [{ wch: 8 }, { wch: 40 }, { wch: 12 }, { wch: 8 }, { wch: 8 }];
+  XLSX.utils.book_append_sheet(wb, ws2, '상세데이터');
+
+  const courseName = document.getElementById('courseTitle').textContent || '결과보고서';
+  XLSX.writeFile(wb, `[차트데이터] ${courseName}.xlsx`);
+}
+
+function exportToClipboard() {
+  const qs = getSelectedQuestions();
+  if (!qs.length) return;
+
+  // 탭 구분 텍스트 (Excel에 붙여넣기 가능)
+  const header = '문항\t평균점수\t카테고리\t응답수';
+  const rows = qs.map(q =>
+    `${q.label}\t${q.avg}\t${q.category || ''}\t${q.count || ''}`
+  );
+  const text = [header, ...rows].join('\n');
+
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('exportClipBtn');
+    const orig = btn.textContent;
+    btn.textContent = '✅ 복사됨!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+}
+
 async function generatePPT() {
   if (!sessionId) return;
   const btn = document.getElementById('pptBtn');

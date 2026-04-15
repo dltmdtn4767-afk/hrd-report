@@ -42,9 +42,17 @@ def parse_course_info_from_filename(filepath):
     return {"company": "", "course_name": cleaned, "raw_name": cleaned}
 
 
-# ─── 주관식 키워드 ───
-OPEN_ENDED_KEYWORDS = ['기술해', '작성해', '서술해', '의견', '한가지를', '목표를',
-                        '기술하', '작성하', '서술하', '자유롭게', '입력']
+# ─── 주관식 키워드 (헤더 기반 1차 판별) ───
+OPEN_ENDED_KEYWORDS = [
+    '기술해', '작성해', '서술해', '입력', '명시해', '작성하', '기술하', '서술하',
+    '의견', '개선', '제안', '감상', '담소', '담포', '희망', '바람', '요청',
+    '자유롭게', '자유형식', '기타', '한가지를', '한 가지', '한가지',
+    '목표를', '계획', '활용할', '적용할', '실천할', '노력', '이유를',
+]
+
+# 데이터 기반 재분류 임계값: None비율 50%+ AND 텍스트 있으면 주관식
+OPEN_ENDED_NULL_THRESHOLD = 0.5
+
 
 
 def parse_header(header_text):
@@ -258,6 +266,9 @@ def _load_normal(ws, course_info):
                     q["scores"].append(float(val))
                 except (TypeError, ValueError):
                     q["scores"].append(None)
+                    raw = str(val).strip() if val is not None else ""
+                    if raw and raw not in ("-", "0", "n/a", "N/A", "none"):
+                        q.setdefault("raw_texts", []).append(raw)
         
         row_idx += 1
     
@@ -326,6 +337,9 @@ def _load_transposed(ws, course_info):
                     parsed["scores"].append(float(val))
                 except (TypeError, ValueError):
                     parsed["scores"].append(None)
+                    raw = str(val).strip() if val is not None else ""
+                    if raw and raw not in ("-", "0", "n/a", "N/A", "none"):
+                        parsed.setdefault("raw_texts", []).append(raw)
         
         parsed["col"] = str(r)
         parsed["col_idx"] = r
@@ -346,10 +360,26 @@ def _build_result(headers, response_count, course_info):
     instructor_names = set()
     
     for key, q in headers.items():
+        # ─── 데이터 기반 사후 재분류 ───
+        if not q["is_open_ended"]:
+            scores = q.get("scores", [])
+            raw_texts = q.get("raw_texts", [])
+            total = len(scores)
+            null_count = scores.count(None)
+            null_ratio = null_count / total if total > 0 else 1.0
+            # 의미있는 텍스트만 카운트 (길이 4자 이상 = 진짜 주관식)
+            # "5", "4", "매우 좋음" 같은 짧은 값은 제외 → 3자 이하는 Likert 옵션
+            meaningful_texts = [t for t in raw_texts if len(t) > 3]
+            # None 비율 50% 이상 + 의미있는 텍스트 있으면 주관식으로 재분류
+            if null_ratio >= OPEN_ENDED_NULL_THRESHOLD and len(meaningful_texts) > 0:
+                q["is_open_ended"] = True
+                q["answers"] = meaningful_texts
+
+
         if q["is_open_ended"]:
-            open_ended.append({"id": q["id"], "label": q["label"], "answers": q["answers"]})
+            open_ended.append({"id": q["id"], "label": q["label"], "answers": q.get("answers", [])})
         else:
-            valid = [s for s in q["scores"] if s is not None]
+            valid = [s for s in q.get("scores", []) if s is not None]
             avg = round(sum(valid) / len(valid), 2) if valid else 0
             questions.append({
                 "col": q.get("col", ""), "id": q["id"], "category": q["category"],
