@@ -227,27 +227,37 @@ async def generate(session_id: str):
     multi_result = session.get("multi_result", {})
     
     try:
-        # ═══ 공통응답 그룹핑 (주관식) ═══
-        if data.get("open_ended"):
-            grouped_oe = await process_all_open_ended(data["open_ended"], ai_engine)
-            data["open_ended_grouped"] = grouped_oe
-            # 각 차수도
-            for s in multi_result.get("sessions", []):
-                if s.get("open_ended"):
-                    s["open_ended_grouped"] = await process_all_open_ended(s["open_ended"], ai_engine)
+        # ═══ (1) 공통응답 그룹핑 (AI 실패해도 규칙 기반으로 진행) ═══
+        try:
+            if data.get("open_ended"):
+                grouped_oe = await process_all_open_ended(data["open_ended"], ai_engine)
+                data["open_ended_grouped"] = grouped_oe
+                for s in multi_result.get("sessions", []):
+                    if s.get("open_ended"):
+                        s["open_ended_grouped"] = await process_all_open_ended(s["open_ended"], ai_engine)
+        except Exception as e_qual:
+            print(f"[WARN] 정성 그룹핑 실패(폴백 사용): {e_qual}")
         
-        # ═══ AI 내러티브 생성 ═══
-        narrative_prompt = generate_narrative_prompt(data)
-        narrative = await ai_engine.generate_narrative(narrative_prompt)
-        data["narrative"] = narrative
+        # ═══ (2) AI 내러티브 — 실패해도 계속 ═══
+        narrative = {}
+        try:
+            narrative_prompt = generate_narrative_prompt(data)
+            narrative = await ai_engine.generate_narrative(narrative_prompt)
+            data["narrative"] = narrative
+        except Exception as e_narr:
+            print(f"[WARN] AI 내러티브 실패: {e_narr}")
+            data["narrative"] = {}
         
-        # ═══ 주관식 AI 테마 요약 ═══
-        if data.get("open_ended"):
-            qual_prompt = generate_qualitative_prompt(data["open_ended"])
-            qual_summary = await ai_engine.summarize_qualitative(qual_prompt)
-            data["qualitative_summary"] = qual_summary
+        # ═══ (3) 주관식 AI 테마 — 실패해도 계속 ═══
+        try:
+            if data.get("open_ended"):
+                qual_prompt = generate_qualitative_prompt(data["open_ended"])
+                qual_summary = await ai_engine.summarize_qualitative(qual_prompt)
+                data["qualitative_summary"] = qual_summary
+        except Exception as e_qual2:
+            print(f"[WARN] 주관식 AI 요약 실패: {e_qual2}")
         
-        # ═══ PPT 생성 (멀티세션 전달) ═══
+        # ═══ (4) PPT 생성 ═══
         matched = session.get("matched_sample")
         output_path = generate_report(
             data, config,
@@ -259,8 +269,13 @@ async def generate(session_id: str):
         preview = generate_preview(output_path)
         session["preview"] = preview
         
-        review = await ai_engine.review_output(data, preview)
-        session["review"] = review
+        # ═══ (5) AI 검토 — 실패해도 계속 ═══
+        review = {}
+        try:
+            review = await ai_engine.review_output(data, preview)
+            session["review"] = review
+        except Exception as e_rev:
+            print(f"[WARN] AI 검토 실패: {e_rev}")
         
         return {
             "success": True,
@@ -272,6 +287,7 @@ async def generate(session_id: str):
             "session_count": len(multi_result.get("sessions", [])),
             "multi_session": multi_result.get("multi_session", False),
         }
+
     except Exception as e:
         import traceback
         traceback.print_exc()
