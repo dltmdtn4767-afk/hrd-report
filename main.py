@@ -216,7 +216,63 @@ async def analyze_qual(session_id: str):
         return {"open_ended_grouped": [], "error": str(e)}
 
 
+@app.get("/api/rawdata/{session_id}")
+async def get_rawdata(session_id: str):
+    """문항별 개별 응답(로우데이터) 반환 — Excel 상세 시트용"""
+    if session_id not in sessions:
+        raise HTTPException(404, "세션 없음")
+    sess = sessions[session_id]
+    file_path = sess["file_path"]
+    multi_result = sess.get("multi_result", {})
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(file_path, data_only=True)
+
+        raw_by_sheet = {}
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            # 각 시트의 헤더 행 찾기
+            from modules.data_loader import _find_header_row, parse_header, OPEN_ENDED_KEYWORDS
+            header_row = _find_header_row(ws)
+            headers = {}
+            for col_idx in range(1, ws.max_column + 1):
+                val = ws.cell(row=header_row, column=col_idx).value
+                if not val:
+                    continue
+                skip = ['타임스탬프','timestamp','응답자','이름','이메일','email','제출일']
+                if any(k in str(val).lower() for k in skip):
+                    continue
+                parsed = parse_header(str(val).strip())
+                if parsed:
+                    headers[col_idx] = {"id": parsed["id"], "label": parsed["label"],
+                                        "is_open_ended": parsed["is_open_ended"], "responses": []}
+
+            # 데이터 수집
+            for row in range(header_row + 1, ws.max_row + 1):
+                row_empty = all(
+                    ws.cell(row=row, column=c).value is None
+                    for c in headers
+                )
+                if row_empty:
+                    continue
+                for col_idx, q in headers.items():
+                    val = ws.cell(row=row, column=col_idx).value
+                    if val is not None:
+                        q["responses"].append(val)
+
+            raw_by_sheet[sheet_name] = list(headers.values())
+
+        wb.close()
+        return {"raw_by_sheet": raw_by_sheet}
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(500, f"로우데이터 로드 실패: {str(e)}")
+
+
 @app.post("/api/generate/{session_id}")
+
 async def generate(session_id: str):
     """PPT 생성: 차수별 슬라이드 + 종합 + 공통응답"""
     if session_id not in sessions:

@@ -441,7 +441,27 @@ body {
   border-top: 1px solid var(--gray-100);
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
 }
+.move-btn {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #c2410c;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+.move-btn:hover { background: #ffedd5; }
+.move-btn.alt {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+.move-btn.alt:hover { background: #dcfce7; }
+
 
 /* ── LOADING / EMPTY ── */
 .loading-msg {

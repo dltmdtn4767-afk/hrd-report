@@ -7,6 +7,11 @@ let analysisData = null;   // { summary, sessions, combined }
 let currentSession = null; // 현재 선택된 차수 데이터
 let charts = {};
 
+// 정량↔정성 이동 상태
+let movedToQual = new Map();   // id → {id, label, avg, count} (정량→정성으로 이동)
+let movedToQuant = new Set();  // id set (정성→정량으로 이동됐지만 정성탭에서 숨김)
+let qualDataCache = null;      // 정성 원본 데이터 캐시
+
 // ── 초기화 ──────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   checkAIStatus();
@@ -122,7 +127,8 @@ function renderDashboard(d, gd) {
 
   renderOverviewTab(d);
   renderQuantTab(d);
-  renderQualTab(gd);
+  qualDataCache = gd;
+  renderQualTab(mergeQualData(gd));
 }
 
 // ── 탭: 개요 ─────────────────────────────────
@@ -404,12 +410,13 @@ function renderDetailChart(qs) {
   });
 }
 
-// ── 문항별 상세 표 (체크박스 포함) ──────────
+// ── 문항별 상세 표 (체크박스 + 이동 버튼 포함) ──────────
 function renderDetailBody(qs, resp) {
   const body = document.getElementById('quantDetailBody');
   body.innerHTML = qs.map((q, i) => {
     const cls = scoreClass(q.avg);
-    return `<tr data-idx="${i}">
+    const isMovedToQual = movedToQual.has(q.id);
+    return `<tr data-idx="${i}" ${isMovedToQual ? 'style="opacity:.4;text-decoration:line-through"' : ''}>
       <td><input type="checkbox" class="row-check"
           style="display:${selectMode ? '' : 'none'}"
           onchange="toggleRowSelect(${i}, this)"></td>
@@ -417,9 +424,12 @@ function renderDetailBody(qs, resp) {
       <td>${q.label}</td>
       <td><span class="score-badge ${cls}">${q.avg.toFixed(2)}</span></td>
       <td>${q.count || resp}명</td>
+      <td><button class="move-btn" onclick="moveToQual('${q.id}','${q.label.replace(/'/g,"\\'")}',${i})"
+          title="정성 탭으로 이동">📤 정성으로</button></td>
     </tr>`;
   }).join('');
 }
+
 
 
 function renderSessionCompare(sessions, combined) {
@@ -548,13 +558,22 @@ function renderQualTab(gd) {
 
     card.appendChild(body);
 
-    // 복사 버튼
+    // 복사 및 이동 버튼
     const copyRow = document.createElement('div');
     copyRow.className = 'qual-copy-row';
+
+    const moveBtn = document.createElement('button');
+    moveBtn.className = 'move-btn alt';
+    const isMoved = movedToQuant.has(oe.id);
+    moveBtn.textContent = isMoved ? '↩ 정성으로 돌리기' : '📥 정량으로';
+    moveBtn.onclick = () => moveToQuant(oe.id || oe.label);
+
     const copyBtn = document.createElement('button');
     copyBtn.className = 'copy-btn';
     copyBtn.textContent = '📋 복사';
     copyBtn.addEventListener('click', () => copyQualText(oe, common, indiv, copyBtn));
+
+    copyRow.appendChild(moveBtn);
     copyRow.appendChild(copyBtn);
     card.appendChild(copyRow);
 
@@ -629,12 +648,47 @@ function setupTabs() {
 function resetApp() {
   sessionId = null;
   analysisData = null;
+  movedToQual.clear();
+  movedToQuant.clear();
+  qualDataCache = null;
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('uploadSection').style.display = 'flex';
   document.getElementById('fileInput').value = '';
   hideProgress();
   Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
   charts = {};
+}
+
+// ── 정량 ↔ 정성 이동 ────────────────────────
+function moveToQual(qId, qLabel, idx) {
+  if (movedToQual.has(qId)) {
+    movedToQual.delete(qId);
+  } else {
+    movedToQual.set(qId, { id: qId, label: qLabel, answers: [], groups: [], is_manual: true });
+  }
+  // 정량 표 새로고침
+  renderDetailBody(currentQuestions, 0);
+  // 정성 탭 업데이트 (qualDataCache 있으면 반영)
+  if (qualDataCache) {
+    const merged = mergeQualData(qualDataCache);
+    renderQualTab(merged);
+  }
+}
+
+function moveToQuant(qId) {
+  if (movedToQuant.has(qId)) movedToQuant.delete(qId);
+  else movedToQuant.add(qId);
+  if (qualDataCache) {
+    const merged = mergeQualData(qualDataCache);
+    renderQualTab(merged);
+  }
+}
+
+function mergeQualData(gd) {
+  // 수동이동 항목 추가 + 정량이동 항목 숨김
+  const base = (gd.open_ended_grouped || []).filter(oe => !movedToQuant.has(oe.id));
+  const extras = [...movedToQual.values()].filter(m => m.is_manual);
+  return { ...gd, open_ended_grouped: [...base, ...extras] };
 }
 
 // ── 헬퍼 ─────────────────────────────────────
@@ -654,29 +708,34 @@ function tierLabel(v) {
   return '하';
 }
 
+
 // ── PPT 차트용 Excel 내보내기 ─────────────────
 function getSelectedQuestions() {
   if (selectedIndices.size === 0) return currentQuestions;
   return [...selectedIndices].sort((a,b) => a-b).map(i => currentQuestions[i]);
 }
 
-function exportToExcel() {
+async function exportToExcel() {
   const qs = getSelectedQuestions();
   if (!qs.length) return;
 
-  // PPT 차트 데이터 형식: A열=문항라벨, B열=평균점수
-  const wb = XLSX.utils.book_new();
+  const btn = document.getElementById('exportExcelBtn');
+  btn.textContent = '⏳ 준비 중...';
+  btn.disabled = true;
 
-  // 시트 1: 차트 데이터 (PPT에 바로 붙여넣기 가능)
+  const wb = XLSX.utils.book_new();
+  const courseName = document.getElementById('courseTitle').textContent || '결과보고서';
+
+  // ── 시트 1: PPT 차트 데이터 (A=문항, B=평균) ──
   const chartData = [
-    ['문항', '평균점수'],  // 헤더
+    ['문항', '평균점수'],
     ...qs.map(q => [q.label, q.avg])
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(chartData);
   ws1['!cols'] = [{ wch: 40 }, { wch: 10 }];
   XLSX.utils.book_append_sheet(wb, ws1, 'PPT차트데이터');
 
-  // 시트 2: 전체 상세 (id, 라벨, 평균, 응답수, 카테고리)
+  // ── 시트 2: 상세 요약 ──
   const detailData = [
     ['번호', '문항', '카테고리', '평균', '응답수'],
     ...qs.map(q => [q.id || '', q.label, q.category || '', q.avg, q.count || ''])
@@ -685,9 +744,39 @@ function exportToExcel() {
   ws2['!cols'] = [{ wch: 8 }, { wch: 40 }, { wch: 12 }, { wch: 8 }, { wch: 8 }];
   XLSX.utils.book_append_sheet(wb, ws2, '상세데이터');
 
-  const courseName = document.getElementById('courseTitle').textContent || '결과보고서';
+  // ── 시트 3: 로우데이터 (문항별 개별 응답) ──
+  try {
+    const rd = await fetch(`/api/rawdata/${sessionId}`);
+    if (rd.ok) {
+      const rdJson = await rd.json();
+      const rawBySheet = rdJson.raw_by_sheet || {};
+
+      // 선택된 문항 ID 집합
+      const selectedIds = new Set(qs.map(q => q.id));
+      const selectedLabels = new Set(qs.map(q => q.label));
+
+      // 모든 시트의 로우데이터 합침
+      const rawRows = [['시트', '번호', '문항', '응답1', '응답2', '응답3', '...']];
+      for (const [sheetName, qList] of Object.entries(rawBySheet)) {
+        for (const q of qList) {
+          if (!selectedIds.has(q.id) && !selectedLabels.has(q.label)) continue;
+          const responses = (q.responses || []).map(r => r === null ? '' : r);
+          rawRows.push([sheetName, q.id, q.label, ...responses]);
+        }
+      }
+      const ws3 = XLSX.utils.aoa_to_sheet(rawRows);
+      ws3['!cols'] = [{ wch: 10 }, { wch: 8 }, { wch: 40 }];
+      XLSX.utils.book_append_sheet(wb, ws3, '로우데이터');
+    }
+  } catch(e) {
+    console.warn('로우데이터 로드 실패:', e);
+  }
+
   XLSX.writeFile(wb, `[차트데이터] ${courseName}.xlsx`);
+  btn.textContent = '📊 Excel 내보내기';
+  btn.disabled = false;
 }
+
 
 function exportToClipboard() {
   const qs = getSelectedQuestions();
