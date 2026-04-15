@@ -472,12 +472,19 @@ function renderQualTab(gd) {
   const emptyEl = document.getElementById('qualEmpty');
   container.innerHTML = '';
 
-  const items = gd.open_ended_grouped || [];
+  let items = gd.open_ended_grouped || [];
   if (!items.length) {
     emptyEl.style.display = 'block';
     return;
   }
   emptyEl.style.display = 'none';
+
+  // Q번호 순으로 정렬 (Q1 < Q3 < Q9 < Q10)
+  items = [...items].sort((a, b) => {
+    const numA = parseInt((a.id || '').replace(/\D/g, '')) || 999;
+    const numB = parseInt((b.id || '').replace(/\D/g, '')) || 999;
+    return numA - numB;
+  });
 
   items.forEach(oe => {
     const common = (oe.groups || []).filter(g => g.is_common);
@@ -487,11 +494,15 @@ function renderQualTab(gd) {
     const card = document.createElement('div');
     card.className = 'qual-question-card';
 
-    // 헤더
+    // 헤더 — Q번호 뱃지 + 문항명
+    const qNum = oe.id || '';
     card.innerHTML = `
       <div class="qual-question-header">
-        <h4>${oe.id ? oe.id + '. ' : ''}${oe.label || '주관식 문항'}</h4>
-        <span class="qual-count">총 ${totalCount}건 / 공통응답 ${common.length}그룹</span>
+        <div class="qual-header-left">
+          ${qNum ? `<span class="q-badge">${qNum}</span>` : ''}
+          <h4>${oe.label || '주관식 문항'}</h4>
+        </div>
+        <span class="qual-count">총 ${totalCount}건 / 공통 ${common.length}그룹</span>
       </div>
     `;
 
@@ -548,6 +559,7 @@ function renderQualTab(gd) {
     card.appendChild(copyRow);
 
     container.appendChild(card);
+
   });
 }
 

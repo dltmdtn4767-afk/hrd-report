@@ -375,8 +375,25 @@ body {
   align-items: center;
   justify-content: space-between;
 }
+.qual-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.q-badge {
+  background: rgba(255,255,255,.25);
+  border: 1.5px solid rgba(255,255,255,.6);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: .5px;
+}
 .qual-question-header h4 { font-size: 14px; font-weight: 600; }
-.qual-count { font-size: 12px; opacity: .85; }
+.qual-count { font-size: 12px; opacity: .85; flex-shrink: 0; }
+
 .qual-body { padding: 16px 20px; }
 
 .common-group {
