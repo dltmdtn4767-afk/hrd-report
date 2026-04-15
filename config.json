@@ -1,0 +1,12 @@
+{
+    "ppt_template": {
+        "template_path": "templates/[결과보고서] 템플렛.pptx",
+        "output_dir": "output"
+    },
+    "gemini": {
+        "api_key": "AIzaSyDZy9ulQeEuTIneudnbpoR5gxTnZkUVvFA",
+        "model": "gemini-2.0-flash"
+    },
+    "samples_dir": "samples",
+    "uploads_dir": "uploads"
+}

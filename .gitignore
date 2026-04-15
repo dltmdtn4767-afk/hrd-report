@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# 업로드/출력 (클라우드에 올리지 않음)
+uploads/
+output/
+*.pptx
+
+# 샘플 PPT (용량 크므로 제외 — 로컬에서만 사용)
+samples/*.pptx
+
+# 기타
+.DS_Store
+*.log
