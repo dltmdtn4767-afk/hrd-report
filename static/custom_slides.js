@@ -188,6 +188,16 @@ function renderCSPanel() {
     <div class="csp-preview-inner" id="cspPreviewInner_${s.id}"></div>
   </div>`;
 
+  // ── PPT 내보내기 버튼 ──
+  html += `<div class="ppt-export-row" style="margin-top:12px">`;
+  if (s.chartType !== 'none') {
+    html += `<button class="ppt-export-btn" onclick="exportCSChartToPPT(${activeCSIdx})">\ud83d\udcca \ucc28\ud2b8 PPT \ubcf5\uc0ac</button>`;
+  }
+  if (s.tableStyle !== 'none') {
+    html += `<button class="ppt-export-btn" onclick="exportCSTableToPPT(${activeCSIdx})">\ud83d\udccb \ud45c PPT \ubcf5\uc0ac</button>`;
+  }
+  html += `</div>`;
+
   html += '</div>';
   cont.innerHTML = html;
 
@@ -443,7 +453,108 @@ function syncBuilderFromCustomSlides() {
   if (typeof refreshBuilderPreview === 'function') refreshBuilderPreview();
 }
 
+// ── PPT 내보내기 (커스텀 슬라이드) ──
+async function exportCSChartToPPT(idx) {
+  const s = customSlides[idx];
+  if (!s) return;
+  const qs = getAllQuestions();
+  const labels = s.groups.map(g => g.name);
+  const values = s.groups.map(g => calcGroupAvg(g.qIds, qs));
+  const colors = s.groups.map(g => g.color || '#36A86F');
+
+  const payload = {
+    type: 'chart',
+    title: s.title,
+    data: {
+      labels,
+      values,
+      chartType: s.chartType === 'horizontalBar' ? 'horizontalBar' : s.chartType === 'line' ? 'line' : 'bar',
+      colors
+    }
+  };
+
+  try {
+    const r = await fetch('/api/export_element', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `[복사용] ${s.title} 차트.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('차트 내보내기 실패: ' + e.message);
+  }
+}
+
+async function exportCSTableToPPT(idx) {
+  const s = customSlides[idx];
+  if (!s) return;
+  const qs = getAllQuestions();
+
+  let headers = [];
+  let rows = [];
+
+  if (s.tableStyle === 'A') {
+    // 가로형: 그룹명 = 열
+    headers = [...s.groups.map(g => g.name), '과정 전반'];
+    const vals = s.groups.map(g => calcGroupAvg(g.qIds, qs).toFixed(2));
+    const overall = calcGroupAvg(qs.map(q => q.id), qs).toFixed(2);
+    rows = [[...vals, overall]];
+  } else if (s.tableStyle === 'B') {
+    // 세로형: 항목/문항/평균/응답
+    headers = ['항목', '문항', '평균', '응답'];
+    s.groups.forEach(g => {
+      const avg = calcGroupAvg(g.qIds, qs);
+      rows.push([g.name, '', avg.toFixed(2), '']);
+      qs.filter(q => g.qIds.includes(q.id)).forEach(q => {
+        rows.push(['', q.label || '', (q.avg||0).toFixed(2), q.count || '']);
+      });
+    });
+  } else if (s.tableStyle === 'C') {
+    // 2열형
+    headers = ['항목', '결과'];
+    s.groups.forEach(g => {
+      const avg = calcGroupAvg(g.qIds, qs);
+      rows.push([g.name, `${avg.toFixed(2)}점 (${g.qIds.length}문항)`]);
+    });
+    const overall = calcGroupAvg(qs.map(q => q.id), qs);
+    rows.push(['과정 전반', `${overall.toFixed(2)}점`]);
+  }
+
+  const payload = {
+    type: 'table',
+    title: s.title,
+    data: { headers, rows }
+  };
+
+  try {
+    const r = await fetch('/api/export_element', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `[복사용] ${s.title} 표.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('표 내보내기 실패: ' + e.message);
+  }
+}
+
 // ── window에 노출 ──
 window.initCustomSlides = initCustomSlides;
 window.customSlides = customSlides;
+window.exportCSChartToPPT = exportCSChartToPPT;
+window.exportCSTableToPPT = exportCSTableToPPT;
 window.analysisData = window.analysisData || null;
