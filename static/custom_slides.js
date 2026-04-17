@@ -193,13 +193,13 @@ function renderCSPanel() {
     <div class="csp-preview-inner" id="cspPreviewInner_${s.id}"></div>
   </div>`;
 
-  // ── PPT 내보내기 버튼 ──
+  // ── 클립보드 복사 버튼 ──
   html += `<div class="ppt-export-row" style="margin-top:12px">`;
   if (s.chartType !== 'none') {
-    html += `<button class="ppt-export-btn" onclick="exportCSChartToPPT(${activeCSIdx})">📊 차트 PPT 복사</button>`;
+    html += `<button class="ppt-export-btn" onclick="copyCSChartToClipboard(${activeCSIdx})">📊 차트 복사 (Ctrl+V)</button>`;
   }
   if (s.tableStyle !== 'none') {
-    html += `<button class="ppt-export-btn" onclick="exportCSTableToPPT(${activeCSIdx})">📋 표 PPT 복사</button>`;
+    html += `<button class="ppt-export-btn" onclick="copyCSTableToClipboard(${activeCSIdx})">📋 표 복사 (Ctrl+V)</button>`;
   }
   html += `</div>`;
 
@@ -484,108 +484,79 @@ function syncBuilderFromCustomSlides() {
   if (typeof refreshBuilderPreview === 'function') refreshBuilderPreview();
 }
 
-// ── PPT 내보내기 (커스텀 슬라이드) ──
-async function exportCSChartToPPT(idx) {
+// ── 클립보드 이미지 복사 (커스텀 슬라이드) ──
+async function copyCSChartToClipboard(idx) {
   const s = customSlides[idx];
   if (!s) return;
-  const qs = getAllQuestions();
-  const labels = s.groups.map(g => g.name);
-  const values = s.groups.map(g => calcGroupAvg(g.qIds, qs));
-  const colors = s.groups.map(g => g.color || '#36A86F');
-
-  const payload = {
-    type: 'chart',
-    title: s.title,
-    data: {
-      labels,
-      values,
-      chartType: s.chartType === 'horizontalBar' ? 'horizontalBar' : s.chartType === 'line' ? 'line' : 'bar',
-      colors
-    }
-  };
-
+  const canvas = document.getElementById(`csChart_${s.id}`);
+  if (!canvas) return alert('차트가 없습니다');
   try {
-    const r = await fetch('/api/export_element', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload)
-    });
-    if (!r.ok) throw new Error(await r.text());
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `[복사용] ${s.title} 차트.pptx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+    _showCopyToast('차트가 클립보드에 복사됨! PPT에서 Ctrl+V');
   } catch(e) {
-    alert('차트 내보내기 실패: ' + e.message);
+    // fallback: 새 탭에 이미지 열기
+    const url = canvas.toDataURL('image/png');
+    window.open(url, '_blank');
+    alert('클립보드 복사 실패. 새 탭의 이미지를 우클릭 → 복사하세요.');
   }
 }
 
-async function exportCSTableToPPT(idx) {
+async function copyCSTableToClipboard(idx) {
   const s = customSlides[idx];
   if (!s) return;
-  const qs = getAllQuestions();
-
-  let headers = [];
-  let rows = [];
-
-  if (s.tableStyle === 'A') {
-    // 가로형: 그룹명 = 열
-    headers = [...s.groups.map(g => g.name), '과정 전반'];
-    const vals = s.groups.map(g => calcGroupAvg(g.qIds, qs).toFixed(2));
-    const overall = calcGroupAvg(qs.map(q => q.id), qs).toFixed(2);
-    rows = [[...vals, overall]];
-  } else if (s.tableStyle === 'B') {
-    // 세로형: 항목/문항/평균/응답
-    headers = ['항목', '문항', '평균', '응답'];
-    s.groups.forEach(g => {
-      const avg = calcGroupAvg(g.qIds, qs);
-      rows.push([g.name, '', avg.toFixed(2), '']);
-      qs.filter(q => g.qIds.includes(q.id)).forEach(q => {
-        rows.push(['', q.label || '', (q.avg||0).toFixed(2), q.count || '']);
-      });
-    });
-  } else if (s.tableStyle === 'C') {
-    // 2열형
-    headers = ['항목', '결과'];
-    s.groups.forEach(g => {
-      const avg = calcGroupAvg(g.qIds, qs);
-      rows.push([g.name, `${avg.toFixed(2)}점 (${g.qIds.length}문항)`]);
-    });
-    const overall = calcGroupAvg(qs.map(q => q.id), qs);
-    rows.push(['과정 전반', `${overall.toFixed(2)}점`]);
-  }
-
-  const payload = {
-    type: 'table',
-    title: s.title,
-    data: { headers, rows }
-  };
-
+  const previewInner = document.getElementById(`cspPreviewInner_${s.id}`);
+  if (!previewInner) return;
+  const table = previewInner.querySelector('table');
+  if (!table) return alert('표가 없습니다');
   try {
-    const r = await fetch('/api/export_element', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload)
-    });
-    if (!r.ok) throw new Error(await r.text());
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `[복사용] ${s.title} 표.pptx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // HTML 테이블을 클립보드에 복사 → PPT에서 표로 붙여넣기 가능
+    const html = table.outerHTML;
+    const blob = new Blob([html], {type: 'text/html'});
+    const textBlob = new Blob([table.innerText], {type: 'text/plain'});
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': blob,
+      'text/plain': textBlob
+    })]);
+    _showCopyToast('표가 클립보드에 복사됨! PPT에서 Ctrl+V');
   } catch(e) {
-    alert('표 내보내기 실패: ' + e.message);
+    // fallback
+    const range = document.createRange();
+    range.selectNode(table);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+    _showCopyToast('표가 복사됨! PPT에서 Ctrl+V');
   }
+}
+
+function _showCopyToast(msg) {
+  let t = document.getElementById('_copyToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '_copyToast';
+    t.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#36A86F;color:#fff;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:700;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 2500);
 }
 
 // ── window에 노출 ──
 window.initCustomSlides = initCustomSlides;
 window.customSlides = customSlides;
-window.exportCSChartToPPT = exportCSChartToPPT;
-window.exportCSTableToPPT = exportCSTableToPPT;
+window.copyCSChartToClipboard = copyCSChartToClipboard;
+window.copyCSTableToClipboard = copyCSTableToClipboard;
+window.toggleColorUnify = toggleColorUnify;
+window.setUnifiedColor = setUnifiedColor;
+window.addGroup = addGroup;
+window.removeGroup = removeGroup;
+window.updateGroup = updateGroup;
+window.toggleGroupQ = toggleGroupQ;
+window.updateCS = updateCS;
+window.selectCSTab = selectCSTab;
+window.addCustomSlide = addCustomSlide;
+window.deleteCustomSlide = deleteCustomSlide;
 window.analysisData = window.analysisData || null;
