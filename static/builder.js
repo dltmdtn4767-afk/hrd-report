@@ -2,6 +2,37 @@
    보고서 빌더 (builder.js)
    ===================================================== */
 
+// ── 템플릿 업로드 ────────────────────────────────────
+async function uploadTemplate(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const sid = window.sessionId || '';
+  if (!sid) { alert('먼저 데이터 파일을 업로드하세요.'); return; }
+
+  const statusEl = document.getElementById('tplStatus');
+  statusEl.textContent = '⏳ 업로드 중...';
+  statusEl.style.color = '#fbbf24';
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const r = await fetch(`/api/upload_template/${sid}`, { method: 'POST', body: fd });
+    const json = await r.json();
+    if (json.ok) {
+      statusEl.textContent = `✅ ${file.name} (${json.slide_count}장)`;
+      statusEl.style.color = '#34d399';
+    } else {
+      throw new Error(JSON.stringify(json));
+    }
+  } catch(e) {
+    statusEl.textContent = '❌ 업로드 실패';
+    statusEl.style.color = '#f87171';
+    console.error(e);
+  }
+  input.value = '';
+}
+
 // ── 빌더 전역 상태 ──────────────────────────────────
 const builderState = {
   activeIdx: 0,

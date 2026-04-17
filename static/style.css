@@ -902,15 +902,31 @@ tr.selected-row { outline: 2px solid var(--brand); }
 }
 .pv-table tr:nth-child(even) td { background: #f1f5f9; }
 
-/* back cover */
-.pv-back {
-  background: linear-gradient(135deg, #1e3a8a, #2563eb);
-  height: 100%;
+/* ── 템플릿 업로드 ── */
+.tpl-upload-row {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,.3);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 2px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.tpl-upload-btn {
+  background: rgba(99,102,241,.25);
+  border: 1px solid rgba(99,102,241,.5);
+  color: #a5b4fc;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.tpl-upload-btn:hover { background: rgba(99,102,241,.45); }
+.tpl-status {
+  color: #64748b;
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

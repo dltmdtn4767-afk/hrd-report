@@ -363,8 +363,11 @@ async def build_ppt(session_id: str, payload: dict):
         q_groups  = payload.get("quant_groups", [])
         qual_data = payload.get("qual_data", [])
         data      = sess.get("data", {})
+        # 세션에 업로드 템플릿 있으면 우선 사용
+        tpl_path  = sess.get("template_path", None)
 
-        output_path = build_custom_ppt(slides, q_groups, qual_data, data, config)
+        output_path = build_custom_ppt(slides, q_groups, qual_data, data, config,
+                                       template_path=tpl_path)
         filename = os.path.basename(output_path)
         return FileResponse(
             output_path,
@@ -374,6 +377,35 @@ async def build_ppt(session_id: str, payload: dict):
     except Exception as e:
         import traceback; traceback.print_exc()
         raise HTTPException(500, f"빌더 PPT 생성 실패: {e}")
+
+
+@app.post("/api/upload_template/{session_id}")
+async def upload_template(session_id: str, file: UploadFile = File(...)):
+    """PPT 템플릿 업로드 — 세션에 저장"""
+    if session_id not in sessions:
+        raise HTTPException(404, "세션 없음")
+    if not file.filename.lower().endswith('.pptx'):
+        raise HTTPException(400, ".pptx 파일만 허용됩니다")
+
+    tpl_dir = BASE_DIR / "templates"
+    tpl_dir.mkdir(exist_ok=True)
+    tpl_path = tpl_dir / f"custom_{session_id}.pptx"
+
+    content = await file.read()
+    with open(tpl_path, 'wb') as f:
+        f.write(content)
+
+    sessions[session_id]["template_path"] = str(tpl_path)
+
+    # 템플릿 슬라이드 수 확인
+    try:
+        from pptx import Presentation as Prs
+        prs = Prs(str(tpl_path))
+        slide_count = len(prs.slides)
+    except Exception:
+        slide_count = 0
+
+    return {"ok": True, "filename": file.filename, "slide_count": slide_count}
 
 
 @app.post("/api/modify/{session_id}")

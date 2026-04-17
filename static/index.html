@@ -190,6 +190,15 @@
         <span>슬라이드 구성</span>
         <button class="build-ppt-btn" id="buildPptBtn" onclick="buildPPT()">📥 PPT 생성</button>
       </div>
+      <!-- 템플릿 업로드 -->
+      <div class="tpl-upload-row">
+        <input type="file" id="tplFileInput" accept=".pptx" style="display:none"
+               onchange="uploadTemplate(this)">
+        <button class="tpl-upload-btn" onclick="document.getElementById('tplFileInput').click()">
+          📎 템플릿 업로드
+        </button>
+        <span class="tpl-status" id="tplStatus">기본 템플릿 사용 중</span>
+      </div>
       <div class="slide-list" id="slideList"></div>
     </aside>
 

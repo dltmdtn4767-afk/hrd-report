@@ -257,8 +257,11 @@ def _fill_qual(slide, qual_data: list):
 # 메인 빌드 함수
 # ────────────────────────────────────────────
 def build_custom_ppt(slides: list, quant_groups: list, qual_data: list,
-                     data: dict, config: dict) -> str:
-    prs = Presentation(str(TEMPLATE_PATH))
+                     data: dict, config: dict, template_path: str = None) -> str:
+    tpl = Path(template_path) if template_path and Path(template_path).exists() else TEMPLATE_PATH
+    if not tpl.exists():
+        raise FileNotFoundError(f"템플릿 없음: {tpl}")
+    prs = Presentation(str(tpl))
 
     # ── 1. 템플릿 슬라이드 조작 ──────────────────
     # 슬라이드 순서를 빌더 구성대로 재구성
