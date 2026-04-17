@@ -930,3 +930,35 @@ tr.selected-row { outline: 2px solid var(--brand); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── 빌더에 추가 버튼 ── */
+.add-to-builder-btn {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+}
+.add-to-builder-btn:hover { opacity: .85; transform: scale(1.03); }
+
+/* ── 빌더 미니 슬라이드 목록 ── */
+.builder-slides-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 4px 4px;
+}
+.mini-slide-chip {
+  background: var(--brand-light);
+  color: var(--brand-dark);
+  border: 1px solid rgba(37,99,235,.2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}

@@ -132,7 +132,84 @@ function initBuilder(dashboardData) {
 
   renderSlideList();
   selectSlide(0);
+  refreshBuilderMiniList();
 }
+
+// ── 정량 탭에서 빌더에 그룹 추가 ─────────────────────
+function addQuantGroupToBuilder(title, questions) {
+  const all = window._builderData?.multi_result?.combined?.questions || questions;
+  const newG = {
+    id: nextGroupId++,
+    title,
+    questions,
+    allQuestions: all,
+  };
+  builderState.quantGroups.push(newG);
+
+  // qual_text / back_cover 앞에 삽입
+  const qualIdx = builderState.slides.findIndex(s => s.type === 'qual_text');
+  const insertAt = qualIdx >= 0 ? qualIdx : builderState.slides.length - 1;
+  builderState.slides.splice(insertAt, 0, { type: 'quant_chart', groupId: newG.id, data: {} });
+
+  renderSlideList();
+  refreshBuilderMiniList();
+
+  // 알림
+  showToast(`✅ "${title}" 슬라이드가 빌더에 추가됐습니다`);
+}
+
+// ── 정성 탭에서 빌더에 슬라이드 추가 ─────────────────
+function addQualSlideToBuilder(oeId, label, groups) {
+  // 이미 qual_text 슬라이드에 누적 저장됨 (qualEdits에 추가)
+  if (!builderState.qualEdits[oeId]) {
+    builderState.qualEdits[oeId] = {};
+    groups.forEach((g, i) => {
+      builderState.qualEdits[oeId][i] = g.label;
+    });
+  }
+  refreshBuilderMiniList();
+  showToast(`✅ "${label}" 정성 내용이 빌더에 추가됐습니다`);
+}
+
+// ── 퀀트 탭 하단 미니 슬라이드 목록 ─────────────────
+function refreshBuilderMiniList() {
+  const panel = document.getElementById('builderSlidesPanel');
+  const list  = document.getElementById('builderSlidesList');
+  if (!panel || !list) return;
+
+  const count = builderState.slides.length;
+  panel.style.display = count > 0 ? '' : 'none';
+
+  list.innerHTML = builderState.slides.map((slide, i) => {
+    const meta = SLIDE_TYPES[slide.type] || { label: slide.type, icon: '📄' };
+    let label = meta.label;
+    if (slide.type === 'quant_chart') {
+      const g = builderState.quantGroups.find(g => g.id === slide.groupId);
+      if (g) label = g.title;
+    }
+    return `<span class="mini-slide-chip">${i+1}. ${meta.icon} ${label}</span>`;
+  }).join('');
+}
+
+// ── 토스트 알림 ───────────────────────────────────────
+function showToast(msg) {
+  let t = document.getElementById('builderToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'builderToast';
+    t.style.cssText = `position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s,transform .3s;transform:translateY(10px)`;
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  t.style.transform = 'translateY(0)';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translateY(10px)';
+  }, 2500);
+}
+
 
 // ── 슬라이드 목록 렌더 ──────────────────────────────
 function renderSlideList() {

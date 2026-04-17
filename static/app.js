@@ -309,9 +309,36 @@ function toggleSelectMode() {
   document.querySelectorAll('.row-check, #selectAll').forEach(el => {
     el.style.display = selectMode ? '' : 'none';
   });
+  // 빌더·내보내기 버튼 보이기/숨기기
+  ['exportExcelBtn','exportClipBtn','addToBuilderBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = selectMode ? '' : 'none';
+  });
   // 차트 재렌더
   renderDetailChart(currentQuestions);
 }
+
+// ── 선택 문항 → 빌더 슬라이드 추가 ─────────────
+function addSelectedToBuilder() {
+  const qs = getSelectedQuestions();
+  if (!qs.length) { alert('문항을 먼저 선택하세요.'); return; }
+
+  const title = prompt('슬라이드 제목을 입력하세요', `정량 결과 (${qs.length}문항)`);
+  if (title === null) return;  // 취소
+
+  if (typeof addQuantGroupToBuilder === 'function') {
+    addQuantGroupToBuilder(title, qs);
+  } else {
+    // builder.js 아직 안 로드된 경우 대비
+    console.warn('builder.js not loaded');
+  }
+
+  // 선택 해제
+  selectedIndices.clear();
+  updateSelectionUI();
+  renderDetailChart(currentQuestions);
+}
+
 
 function toggleSelectAll(cb) {
   if (cb.checked) {
@@ -581,8 +608,18 @@ function renderQualTab(gd) {
     copyBtn.textContent = '📋 복사';
     copyBtn.addEventListener('click', () => copyQualText(oe, common, indiv, copyBtn));
 
+    const addBuilderBtn = document.createElement('button');
+    addBuilderBtn.className = 'add-to-builder-btn';
+    addBuilderBtn.textContent = '📄 빌더에 추가';
+    addBuilderBtn.addEventListener('click', () => {
+      if (typeof addQualSlideToBuilder === 'function') {
+        addQualSlideToBuilder(oe.id || oe.label, oe.label, common);
+      }
+    });
+
     copyRow.appendChild(moveBtn);
     copyRow.appendChild(copyBtn);
+    copyRow.appendChild(addBuilderBtn);
     card.appendChild(copyRow);
 
     container.appendChild(card);
