@@ -199,7 +199,9 @@ def _fill_summary(slide, data: dict):
 
 
 def _fill_quant_chart(slide, group: dict):
-    """정량 차트 슬라이드 (슬라이드 10 복제본)"""
+    """정량 차트 슬라이드 — 네이티브 차트(데이터시트 포함) + 네이티브 표 생성
+    PPT에서 차트 더블클릭 → 데이터 편집 가능, 표/차트 모두 복사 붙여넣기 가능
+    """
     questions = group.get('questions', [])
     title     = group.get('title', '정량 평가 결과')
 
@@ -208,34 +210,135 @@ def _fill_quant_chart(slide, group: dict):
     if title_sh:
         _set_text(title_sh, title, bold=True)
 
-    # 표 채우기
+    # ── 기존 표가 있으면 템플릿 스타일B로 채우기 ──
     tbl_shape = _find_shape(slide, '표')
     if tbl_shape and tbl_shape.has_table:
         tbl = tbl_shape.table
-        _set_table_cell(tbl, 0, 0, '번호', bold=True)
-        _set_table_cell(tbl, 0, 1, '문항', bold=True)
-        _set_table_cell(tbl, 0, 2, '평균', bold=True)
+        # 헤더 (D9D9D9)
+        _set_table_cell(tbl, 0, 0, '항목', bold=True, bg='D9D9D9')
+        _set_table_cell(tbl, 0, 1, '문항', bold=True, bg='D9D9D9')
+        _set_table_cell(tbl, 0, 2, '평균', bold=True, bg='D9D9D9')
+        if len(tbl.columns) > 3:
+            _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='D9D9D9')
         for i, q in enumerate(questions):
             r = i + 1
             try:
                 if r < tbl.rows.__len__():
                     _set_table_cell(tbl, r, 0, q.get('id', str(i+1)))
                     _set_table_cell(tbl, r, 1, q.get('label', ''))
-                    _set_table_cell(tbl, r, 2, f"{q.get('avg',0):.2f}")
+                    avg_val = q.get('avg', 0)
+                    _set_table_cell(tbl, r, 2, f"{avg_val:.2f}")
+                    if len(tbl.columns) > 3:
+                        _set_table_cell(tbl, r, 3, str(q.get('count', '')))
             except Exception:
                 pass
 
-    # 차트 (있을 경우)
+    # ── 네이티브 차트 삽입 (데이터 시트 포함 → PPT에서 더블클릭 편집 가능) ──
+    has_chart = False
     for sh in slide.shapes:
         try:
             chart = sh.chart
+            has_chart = True
             cd = ChartData()
-            cd.categories = [q.get('id', str(i+1)) for i, q in enumerate(questions)]
+            cd.categories = [q.get('label', str(i+1))[:20] for i, q in enumerate(questions)]
             cd.add_series('평균', [round(q.get('avg', 0), 2) for q in questions])
             chart.replace_data(cd)
+            # 차트 스타일 설정
+            try:
+                plot = chart.plots[0]
+                plot.gap_width = 80
+                for pt_idx, q in enumerate(questions):
+                    try:
+                        pt = plot.series[0].points[pt_idx]
+                        avg = q.get('avg', 0)
+                        if avg >= 4.5:
+                            pt.format.fill.solid()
+                            pt.format.fill.fore_color.rgb = RGBColor(0x36, 0xA8, 0x6F)  # 초록
+                        elif avg < 3.5:
+                            pt.format.fill.solid()
+                            pt.format.fill.fore_color.rgb = RGBColor(0xE7, 0x4C, 0x3C)  # 빨강
+                        else:
+                            pt.format.fill.solid()
+                            pt.format.fill.fore_color.rgb = RGBColor(0x4A, 0x90, 0xD9)  # 파랑
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             break
         except Exception:
             pass
+
+    # 차트가 없으면 새로 추가
+    if not has_chart and questions:
+        _add_native_chart(slide, questions, title)
+
+
+def _add_native_chart(slide, questions, title):
+    """PPT 네이티브 막대 차트를 슬라이드에 새로 추가 (데이터 시트 포함)"""
+    cd = ChartData()
+    labels = [q.get('label', '')[:20] for q in questions]
+    values = [round(q.get('avg', 0), 2) for q in questions]
+    cd.categories = labels
+    cd.add_series('평균', values)
+
+    # 차트 위치: 슬라이드 왼쪽 상단 ~ 중앙
+    x = Inches(0.5)
+    y = Inches(1.2)
+    cx = Inches(9.5)
+    cy = Inches(3.0)
+
+    chart_frame = slide.shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_CLUSTERED,
+        x, y, cx, cy, cd
+    )
+    chart = chart_frame.chart
+
+    # 차트 스타일
+    chart.has_legend = False
+    try:
+        plot = chart.plots[0]
+        plot.gap_width = 80
+        # 데이터 레이블 표시
+        plot.has_data_labels = True
+        data_labels = plot.data_labels
+        data_labels.number_format = '0.00'
+        data_labels.font.size = Pt(9)
+        data_labels.font.bold = True
+
+        # 색상: 점수에 따라 분류
+        for pt_idx, q in enumerate(questions):
+            try:
+                pt = plot.series[0].points[pt_idx]
+                avg = q.get('avg', 0)
+                pt.format.fill.solid()
+                if avg >= 4.5:
+                    pt.format.fill.fore_color.rgb = RGBColor(0x36, 0xA8, 0x6F)
+                elif avg < 3.5:
+                    pt.format.fill.fore_color.rgb = RGBColor(0xE7, 0x4C, 0x3C)
+                else:
+                    pt.format.fill.fore_color.rgb = RGBColor(0x4A, 0x90, 0xD9)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Y축 범위
+    try:
+        value_axis = chart.value_axis
+        value_axis.minimum_scale = 0
+        value_axis.maximum_scale = 5
+        value_axis.major_unit = 1
+        value_axis.has_title = False
+    except Exception:
+        pass
+
+    # X축 폰트
+    try:
+        cat_axis = chart.category_axis
+        cat_axis.tick_labels.font.size = Pt(8)
+    except Exception:
+        pass
+
 
 
 def _fill_qual(slide, qual_data: list):
@@ -272,10 +375,12 @@ def _fill_custom_quant(slide, custom_data: dict):
     if title_sh:
         _set_text(title_sh, title, bold=True)
 
-    # 차트 업데이트 (있으면)
+    # 차트: 있으면 데이터 교체, 없으면 네이티브 차트 추가
+    has_chart = False
     for sh in slide.shapes:
         try:
             chart = sh.chart
+            has_chart = True
             cd = ChartData()
             cd.categories = [g.get('name', '') for g in groups]
             cd.add_series('평균', [round(g.get('avg', 0), 2) for g in groups])
@@ -283,6 +388,11 @@ def _fill_custom_quant(slide, custom_data: dict):
             break
         except Exception:
             pass
+
+    if not has_chart and groups:
+        # 그룹을 문항처럼 변환해서 네이티브 차트 추가
+        fake_qs = [{"label": g.get("name",""), "avg": g.get("avg",0)} for g in groups]
+        _add_native_chart(slide, fake_qs, title)
 
     # 표 채우기
     tbl_shape = _find_shape(slide, '표')
