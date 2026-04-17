@@ -256,3 +256,30 @@
 .ppt-export-row {
   display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end;
 }
+
+/* ── 섹션 접기/펼치기 ── */
+.collapsible .section-header {
+  cursor: pointer; user-select: none;
+}
+.collapsible .section-header:hover { background: #f8f9fa; }
+.collapse-arrow {
+  display: inline-block; transition: transform .2s;
+  font-size: 12px; margin-right: 4px; color: #999;
+}
+.collapsible.collapsed > *:not(.section-header) {
+  display: none !important;
+}
+
+/* ── 색상 토글 버튼 ── */
+.color-toggle-row {
+  display: flex; gap: 6px; align-items: center; margin-bottom: 10px;
+}
+.color-toggle-btn {
+  background: #fff; border: 1px solid #ccc; padding: 4px 12px;
+  border-radius: 5px; font-size: 11px; cursor: pointer;
+  font-family: var(--tpl-font); transition: all .15s;
+}
+.color-toggle-btn:hover { border-color: var(--tpl-green); color: var(--tpl-green); }
+.color-toggle-btn.active {
+  background: var(--tpl-green); color: #fff; border-color: var(--tpl-green);
+}

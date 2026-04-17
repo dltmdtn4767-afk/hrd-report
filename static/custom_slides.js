@@ -152,6 +152,11 @@ function renderCSPanel() {
     <div class="csp-groups-header">
       <span>📊 그룹 정의 (문항을 묶어서 평균값을 산출합니다)</span>
       <button class="csp-add-group-btn" onclick="addGroup()">＋ 그룹 추가</button>
+    </div>
+    <div class="color-toggle-row">
+      <button class="color-toggle-btn ${s._colorUnified ? 'active' : ''}" onclick="toggleColorUnify(true)">🎨 색 통일</button>
+      <button class="color-toggle-btn ${!s._colorUnified ? 'active' : ''}" onclick="toggleColorUnify(false)">🌈 색 다르게</button>
+      ${s._colorUnified ? '<input type="color" value="'+(s._unifiedColor||'#36A86F')+'" style="width:28px;height:24px;border:none;cursor:pointer" onchange="setUnifiedColor(this.value)">' : ''}
     </div>`;
 
   s.groups.forEach((g, gi) => {
@@ -223,14 +228,40 @@ function updateCS(key, val) {
 
 function addGroup() {
   if (activeCSIdx < 0) return;
-  const colors = ['#36A86F', '#4A90D9', '#E67E22', '#9B59B6', '#E74C3C', '#1ABC9C', '#34495E'];
-  const gi = customSlides[activeCSIdx].groups.length;
-  customSlides[activeCSIdx].groups.push({
+  const s = customSlides[activeCSIdx];
+  const AUTO_COLORS = ['#36A86F','#4A90D9','#E67E22','#9B59B6','#E74C3C','#1ABC9C','#34495E','#F39C12','#2ECC71','#3498DB'];
+  const gi = s.groups.length;
+  const color = s._colorUnified ? (s._unifiedColor || '#36A86F') : AUTO_COLORS[gi % AUTO_COLORS.length];
+  s.groups.push({
     name: `그룹 ${gi + 1}`,
     qIds: [],
-    color: colors[gi % colors.length],
+    color: color,
   });
   renderCSPanel();
+}
+
+function toggleColorUnify(unified) {
+  if (activeCSIdx < 0) return;
+  const s = customSlides[activeCSIdx];
+  s._colorUnified = unified;
+  if (unified) {
+    const baseColor = s._unifiedColor || '#36A86F';
+    s.groups.forEach(g => { g.color = baseColor; });
+  } else {
+    const AUTO_COLORS = ['#36A86F','#4A90D9','#E67E22','#9B59B6','#E74C3C','#1ABC9C','#34495E','#F39C12','#2ECC71','#3498DB'];
+    s.groups.forEach((g, i) => { g.color = AUTO_COLORS[i % AUTO_COLORS.length]; });
+  }
+  renderCSPanel();
+  syncBuilderFromCustomSlides();
+}
+
+function setUnifiedColor(color) {
+  if (activeCSIdx < 0) return;
+  const s = customSlides[activeCSIdx];
+  s._unifiedColor = color;
+  s.groups.forEach(g => { g.color = color; });
+  renderCSPanel();
+  syncBuilderFromCustomSlides();
 }
 
 function removeGroup(gi) {

@@ -7,6 +7,15 @@ let analysisData = null;   // { summary, sessions, combined }
 let currentSession = null; // 현재 선택된 차수 데이터
 let charts = {};
 
+// ── 섹션 접기/펼치기 ──
+function toggleSection(headerEl) {
+  const card = headerEl.closest('.section-card');
+  if (!card) return;
+  card.classList.toggle('collapsed');
+  const arrow = headerEl.querySelector('.collapse-arrow');
+  if (arrow) arrow.textContent = card.classList.contains('collapsed') ? '▶' : '▼';
+}
+
 // 정량↔정성 이동 상태
 let movedToQual = new Map();   // id → {id, label, avg, count} (정량→정성으로 이동)
 let movedToQuant = new Set();  // id set (정성→정량으로 이동됐지만 정성탭에서 숨김)
