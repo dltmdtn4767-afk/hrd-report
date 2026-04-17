@@ -163,6 +163,12 @@
 
   <!-- TAB: 정성 평가 -->
   <div class="tab-content" id="tab-qual">
+    <div class="qual-toolbar">
+      <span class="qual-toolbar-label">공통응답 정렬:</span>
+      <button class="sort-btn active" id="sortDesc" onclick="setQualSort('desc')">건수 많은 순 ▼</button>
+      <button class="sort-btn" id="sortAsc"  onclick="setQualSort('asc')">건수 적은 순 ▲</button>
+      <button class="sort-btn" id="sortId"   onclick="setQualSort('id')">문항 번호순</button>
+    </div>
     <div id="qualLoading" class="loading-msg" style="display:none">
       <div class="spinner"></div>
       <span>공통응답 분석 중...</span>

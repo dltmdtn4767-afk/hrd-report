@@ -11,6 +11,8 @@ let charts = {};
 let movedToQual = new Map();   // id → {id, label, avg, count} (정량→정성으로 이동)
 let movedToQuant = new Set();  // id set (정성→정량으로 이동됐지만 정성탭에서 숨김)
 let qualDataCache = null;      // 정성 원본 데이터 캐시
+let qualSortOrder = 'desc';    // 공통응답 정렬: 'desc' | 'asc' | 'id'
+
 
 // ── 초기화 ──────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -566,7 +568,7 @@ function renderQualTab(gd) {
     moveBtn.className = 'move-btn alt';
     const isMoved = movedToQuant.has(oe.id);
     moveBtn.textContent = isMoved ? '↩ 정성으로 돌리기' : '📥 정량으로';
-    moveBtn.onclick = () => moveToQuant(oe.id || oe.label);
+    moveBtn.onclick = () => moveToQuant(oe.id || oe.label, oe.label);
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'copy-btn';
@@ -675,14 +677,50 @@ function moveToQual(qId, qLabel, idx) {
   }
 }
 
-function moveToQuant(qId) {
-  if (movedToQuant.has(qId)) movedToQuant.delete(qId);
-  else movedToQuant.add(qId);
-  if (qualDataCache) {
-    const merged = mergeQualData(qualDataCache);
-    renderQualTab(merged);
+async function moveToQuant(qId, qLabel) {
+  if (movedToQuant.has(qId)) {
+    // ── 되돌리기: 정량에서 제거, 정성에서 복원
+    movedToQuant.delete(qId);
+    currentQuestions = currentQuestions.filter(q => q.id !== qId || !q._manualFromQual);
+  } else {
+    movedToQuant.add(qId);
+    // rawdata에서 해당 문항 점수 계산
+    try {
+      const rd = await fetch(`/api/rawdata/${sessionId}`);
+      if (rd.ok) {
+        const rdJson = await rd.json();
+        const rawBySheet = rdJson.raw_by_sheet || {};
+        let scores = [];
+        for (const qs of Object.values(rawBySheet)) {
+          const match = qs.find(q => q.id === qId || q.label === qLabel);
+          if (match) {
+            scores = (match.responses || [])
+              .map(r => parseFloat(r))
+              .filter(v => !isNaN(v) && v >= 1 && v <= 5);
+            break;
+          }
+        }
+        if (scores.length > 0) {
+          const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 100) / 100;
+          // currentQuestions에 삽입 (중복 방지)
+          if (!currentQuestions.find(q => q.id === qId)) {
+            currentQuestions = [...currentQuestions, {
+              id: qId, label: qLabel, avg, count: scores.length,
+              category: '이동(정성→정량)', _manualFromQual: true
+            }];
+          }
+        }
+      }
+    } catch(e) { console.warn('rawdata 로드 실패', e); }
   }
+
+  // 정량 차트·표 갱신
+  renderDetailBody(currentQuestions, 0);
+  renderDetailChart(currentQuestions);
+  // 정성 탭 갱신
+  if (qualDataCache) renderQualTab(mergeQualData(qualDataCache));
 }
+
 
 function mergeQualData(gd) {
   // 수동이동 항목 추가 + 정량이동 항목 숨김
