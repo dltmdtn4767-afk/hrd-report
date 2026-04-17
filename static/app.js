@@ -270,6 +270,9 @@ function renderQuantData(data, label, sessions) {
   // 차트 렌더링
   renderSummaryChart(cats);
   renderDetailChart(qs);
+
+  // PPT 내보내기 버튼 삽입
+  _addExportButtons(cats, qs, resp);
 }
 
 
@@ -954,3 +957,145 @@ async function generatePPT() {
   }
 }
 
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PPT 개별 내보내기 (차트/표 → 복사용 PPTX)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _addExportButtons(cats, qs, resp) {
+  // 영역별 요약 차트 아래 버튼
+  const summaryChartEl = document.getElementById('summaryChart');
+  if (summaryChartEl) {
+    let wrap = summaryChartEl.parentElement;
+    let existing = wrap.querySelector('.ppt-export-row');
+    if (existing) existing.remove();
+    let div = document.createElement('div');
+    div.className = 'ppt-export-row';
+    div.style.cssText = 'display:flex;gap:8px;margin-top:8px;justify-content:flex-end';
+    div.innerHTML = `
+      <button class="ppt-export-btn" onclick="exportChartToPPT('summary','영역별 종합')">📊 차트 PPT 복사</button>
+      <button class="ppt-export-btn" onclick="exportTableToPPT('summary','영역별 요약 표')">📋 표 PPT 복사</button>
+    `;
+    wrap.appendChild(div);
+  }
+  // 문항별 상세 차트 아래 버튼
+  const detailChartEl = document.getElementById('detailChart');
+  if (detailChartEl) {
+    let wrap = detailChartEl.parentElement;
+    let existing = wrap.querySelector('.ppt-export-row');
+    if (existing) existing.remove();
+    let div = document.createElement('div');
+    div.className = 'ppt-export-row';
+    div.style.cssText = 'display:flex;gap:8px;margin-top:8px;justify-content:flex-end';
+    div.innerHTML = `
+      <button class="ppt-export-btn" onclick="exportChartToPPT('detail','문항별 상세')">📊 차트 PPT 복사</button>
+      <button class="ppt-export-btn" onclick="exportTableToPPT('detail','문항별 상세 표')">📋 표 PPT 복사</button>
+    `;
+    wrap.appendChild(div);
+  }
+}
+
+window._exportCache = {};
+
+async function exportChartToPPT(chartId, title) {
+  const data = _getChartDataForExport(chartId);
+  if (!data) return alert('차트 데이터 없음');
+
+  const payload = {
+    type: 'chart',
+    title: title,
+    data: data
+  };
+
+  try {
+    const r = await fetch('/api/export_element', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `[복사용] ${title}.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('내보내기 실패: ' + e.message);
+  }
+}
+
+async function exportTableToPPT(tableId, title) {
+  const data = _getTableDataForExport(tableId);
+  if (!data) return alert('표 데이터 없음');
+
+  const payload = {
+    type: 'table',
+    title: title,
+    data: data
+  };
+
+  try {
+    const r = await fetch('/api/export_element', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `[복사용] ${title}.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('내보내기 실패: ' + e.message);
+  }
+}
+
+function _getChartDataForExport(chartId) {
+  const ad = window.analysisData;
+  if (!ad) return null;
+  const combined = ad.combined || {};
+  const cats = combined.categories || [];
+  const qs = combined.questions || [];
+
+  if (chartId === 'summary') {
+    return {
+      labels: cats.map(c => c.name),
+      values: cats.map(c => c.avg),
+      chartType: 'bar',
+      colors: cats.map(c => c.avg >= 4.5 ? '#36A86F' : c.avg < 3.5 ? '#E74C3C' : '#4A90D9')
+    };
+  } else if (chartId === 'detail') {
+    return {
+      labels: qs.map(q => (q.label || '').substring(0, 20)),
+      values: qs.map(q => q.avg),
+      chartType: 'bar',
+      colors: qs.map(q => q.avg >= 4.5 ? '#36A86F' : q.avg < 3.5 ? '#E74C3C' : '#4A90D9')
+    };
+  }
+  return null;
+}
+
+function _getTableDataForExport(tableId) {
+  const ad = window.analysisData;
+  if (!ad) return null;
+  const combined = ad.combined || {};
+  const cats = combined.categories || [];
+  const qs = combined.questions || [];
+
+  if (tableId === 'summary') {
+    return {
+      headers: ['영역', '평균', '등급'],
+      rows: cats.map(c => [c.name, c.avg.toFixed(2), c.avg >= 4.5 ? '우수' : c.avg >= 3.5 ? '보통' : '미흡'])
+    };
+  } else if (tableId === 'detail') {
+    return {
+      headers: ['번호', '문항', '평균', '응답'],
+      rows: qs.map(q => [q.id || '', q.label || '', (q.avg||0).toFixed(2), q.count || ''])
+    };
+  }
+  return null;
+}

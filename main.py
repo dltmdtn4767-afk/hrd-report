@@ -382,6 +382,152 @@ async def build_ppt(session_id: str, payload: dict):
         raise HTTPException(500, f"빌더 PPT 생성 실패: {e}")
 
 
+@app.post("/api/export_element")
+async def export_element(payload: dict):
+    """차트 또는 표 하나만 들어있는 PPTX 생성 → 복사 붙여넣기용
+    payload: { type: 'chart'|'table', title: str, data: {...} }
+    """
+    from pptx import Presentation as Prs
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.chart.data import ChartData
+    from pptx.enum.chart import XL_CHART_TYPE
+    from pptx.enum.text import PP_ALIGN
+    from urllib.parse import quote
+    import tempfile
+
+    elem_type = payload.get("type", "chart")  # 'chart' or 'table'
+    title = payload.get("title", "데이터")
+    data = payload.get("data", {})
+
+    prs = Prs()
+    prs.slide_width = Inches(10.8)
+    prs.slide_height = Inches(7.5)
+    blank_layout = prs.slide_layouts[6]  # blank
+    slide = prs.slides.add_slide(blank_layout)
+
+    if elem_type == "chart":
+        # ── 네이티브 차트 (데이터시트 포함, 더블클릭 편집 가능) ──
+        labels = data.get("labels", [])
+        values = data.get("values", [])
+        chart_type_str = data.get("chartType", "bar")
+
+        cd = ChartData()
+        cd.categories = labels
+        cd.add_series('평균', [round(v, 2) for v in values])
+
+        ct = XL_CHART_TYPE.COLUMN_CLUSTERED
+        if chart_type_str == "horizontalBar":
+            ct = XL_CHART_TYPE.BAR_CLUSTERED
+        elif chart_type_str == "line":
+            ct = XL_CHART_TYPE.LINE
+
+        chart_frame = slide.shapes.add_chart(
+            ct, Inches(0.5), Inches(0.5), Inches(9.5), Inches(6.0), cd
+        )
+        chart = chart_frame.chart
+        chart.has_legend = False
+
+        try:
+            plot = chart.plots[0]
+            plot.gap_width = 80
+            plot.has_data_labels = True
+            dl = plot.data_labels
+            dl.number_format = '0.00'
+            dl.font.size = Pt(10)
+            dl.font.bold = True
+
+            colors = data.get("colors", [])
+            for pi in range(len(values)):
+                try:
+                    pt = plot.series[0].points[pi]
+                    pt.format.fill.solid()
+                    if pi < len(colors) and colors[pi]:
+                        hex_c = colors[pi].lstrip('#')
+                        pt.format.fill.fore_color.rgb = RGBColor(
+                            int(hex_c[0:2],16), int(hex_c[2:4],16), int(hex_c[4:6],16))
+                    else:
+                        v = values[pi]
+                        if v >= 4.5:
+                            pt.format.fill.fore_color.rgb = RGBColor(0x36,0xA8,0x6F)
+                        elif v < 3.5:
+                            pt.format.fill.fore_color.rgb = RGBColor(0xE7,0x4C,0x3C)
+                        else:
+                            pt.format.fill.fore_color.rgb = RGBColor(0x4A,0x90,0xD9)
+                except: pass
+        except: pass
+
+        try:
+            chart.value_axis.minimum_scale = 0
+            chart.value_axis.maximum_scale = 5
+            chart.value_axis.major_unit = 1
+            chart.category_axis.tick_labels.font.size = Pt(9)
+        except: pass
+
+    elif elem_type == "table":
+        # ── 네이티브 표 (복사 붙여넣기 가능) ──
+        rows_data = data.get("rows", [])
+        headers = data.get("headers", [])
+        style = data.get("style", "B")
+
+        n_rows = len(rows_data) + 1  # +헤더
+        n_cols = len(headers) if headers else (len(rows_data[0]) if rows_data else 4)
+        n_rows = max(n_rows, 2)
+        n_cols = max(n_cols, 1)
+
+        tbl_shape = slide.shapes.add_table(
+            n_rows, n_cols,
+            Inches(0.5), Inches(0.5), Inches(9.5), Inches(6.0)
+        )
+        tbl = tbl_shape.table
+
+        # 헤더
+        for ci, h in enumerate(headers):
+            if ci < n_cols:
+                cell = tbl.cell(0, ci)
+                cell.text = str(h)
+                for p in cell.text_frame.paragraphs:
+                    p.alignment = PP_ALIGN.CENTER
+                    for r in p.runs:
+                        r.font.bold = True
+                        r.font.size = Pt(11)
+                # 헤더 배경 D9D9D9
+                from pptx.oxml.ns import qn
+                from lxml import etree
+                tc = cell._tc
+                tcPr = tc.find(qn('a:tcPr'))
+                if tcPr is None:
+                    tcPr = etree.SubElement(tc, qn('a:tcPr'))
+                solidFill = etree.SubElement(tcPr, qn('a:solidFill'))
+                srgb = etree.SubElement(solidFill, qn('a:srgbClr'))
+                srgb.set('val', 'D9D9D9')
+
+        # 데이터 행
+        for ri, row in enumerate(rows_data):
+            for ci, val in enumerate(row):
+                if ci < n_cols and ri + 1 < n_rows:
+                    cell = tbl.cell(ri + 1, ci)
+                    cell.text = str(val)
+                    for p in cell.text_frame.paragraphs:
+                        p.alignment = PP_ALIGN.CENTER
+                        for r in p.runs:
+                            r.font.size = Pt(10)
+
+    # 저장
+    out_dir = BASE_DIR / "output"
+    out_dir.mkdir(exist_ok=True)
+    safe_title = title.replace(' ','_')[:20]
+    filename = f"[복사용] {safe_title}.pptx"
+    out_path = out_dir / filename
+    prs.save(str(out_path))
+
+    safe_fn = quote(filename)
+    return FileResponse(
+        str(out_path),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_fn}"},
+    )
+
 @app.post("/api/upload_template/{session_id}")
 async def upload_template(session_id: str, file: UploadFile = File(...)):
     """PPT 템플릿 업로드 — 세션에 저장"""
