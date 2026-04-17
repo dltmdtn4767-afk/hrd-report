@@ -1,307 +1,449 @@
-/* =========================================================
-   커스텀 슬라이드 구성 시스템 — custom_slides.js
-   정량/정성 탭에서 슬라이드 단위로 보고서를 구성
-   ========================================================= */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   custom_slides.js — 문항 그룹핑 + 커스텀 슬라이드 시스템
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-// ── 전역 상태 ────────────────────────────────────────────
-const customSlides = [];   // [{id, title, chartType, questions:[], tablePos, tableTitle}]
-let customActiveId = null;
-let nextCustomId = 1;
-let _previewDebounce = null;
+// ── 전역 상태 ──
+const customSlides = [];   // [{id, title, chartType, tableStyle, tablePos, groups:[{name,qIds}]}]
+let activeCSIdx = -1;
+let csIdSeq = 1;
 
-// ── 초기화 (데이터 로드 후) ─────────────────────────────
-function initCustomSlides(dashboardData) {
-  window._dashData = dashboardData;
-  const questions = dashboardData?.multi_result?.combined?.questions || [];
-  window._allQuestions = questions;
-  renderCustomSlideTabs();
-  syncBuilderFromCustomSlides();
+function getAllQuestions() {
+  // app.js의 analysisData에서 전체 문항 가져오기
+  if (!window.analysisData) return [];
+  const combined = window.analysisData.combined || window.analysisData.sessions?.[0];
+  if (!combined) return [];
+  return combined.questions || [];
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 커스텀 슬라이드 CRUD
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function getCategories() {
+  if (!window.analysisData) return [];
+  const combined = window.analysisData.combined || window.analysisData.sessions?.[0];
+  return combined?.categories || [];
+}
 
-function addCustomSlide() {
-  const id = nextCustomId++;
-  const questions = window._allQuestions || [];
-  customSlides.push({
-    id,
-    title: `슬라이드 ${id}`,
-    chartType: 'bar',        // 'bar' | 'none'
-    questions: questions.slice(0, 6).map(q => q.id),  // 기본: 첫 6문항
-    tablePos: 'below',       // 'above' | 'below' | 'none'
-    tableTitle: '문항별 평균 점수',
+// ── 초기화 ──
+function initCustomSlides() {
+  renderCSTabs();
+  renderCSPanel();
+}
+
+// ── 탭 렌더링 ──
+function renderCSTabs() {
+  const cont = document.getElementById('customSlideTabs');
+  if (!cont) return;
+  let html = '';
+  customSlides.forEach((s, i) => {
+    html += `<button class="cst-tab ${i === activeCSIdx ? 'active' : ''}"
+              onclick="selectCSTab(${i})">${s.title || '슬라이드 ' + (i + 1)}</button>`;
   });
-  customActiveId = id;
-  renderCustomSlideTabs();
-  renderCustomSlidePanel(id);
-  syncBuilderFromCustomSlides();
-  if (typeof showToast === 'function') showToast('✅ 슬라이드 추가됨 — 보고서 빌더에 실시간 반영');
+  html += `<button class="cst-tab add" onclick="addCustomSlide()">＋</button>`;
+  cont.innerHTML = html;
 }
 
-function deleteCustomSlide(id) {
-  const idx = customSlides.findIndex(s => s.id === id);
-  if (idx >= 0) customSlides.splice(idx, 1);
-  if (customActiveId === id) {
-    customActiveId = customSlides.length ? customSlides[customSlides.length - 1].id : null;
+function selectCSTab(idx) {
+  activeCSIdx = idx;
+  renderCSTabs();
+  renderCSPanel();
+}
+
+// ── 슬라이드 추가 ──
+function addCustomSlide() {
+  const cats = getCategories();
+  const qs = getAllQuestions();
+
+  // 기본 그룹: 카테고리별 자동 생성
+  const defaultGroups = [];
+  if (cats.length > 0) {
+    cats.forEach(cat => {
+      const catQIds = (cat.questions || []).map(q => q.id);
+      defaultGroups.push({ name: cat.name, qIds: catQIds, color: '#36A86F' });
+    });
+  } else if (qs.length > 0) {
+    // 카테고리 없으면 6개씩 자동 분할
+    for (let i = 0; i < qs.length; i += 6) {
+      const chunk = qs.slice(i, i + 6);
+      defaultGroups.push({
+        name: `그룹 ${Math.floor(i / 6) + 1}`,
+        qIds: chunk.map(q => q.id),
+        color: ['#36A86F', '#4A90D9', '#E67E22', '#9B59B6', '#E74C3C'][Math.floor(i / 6) % 5]
+      });
+    }
   }
-  renderCustomSlideTabs();
-  if (customActiveId) renderCustomSlidePanel(customActiveId);
-  else document.getElementById('customSlidePanel').innerHTML =
-    '<div class="csp-empty">+ 슬라이드 추가 버튼을 누르세요</div>';
+
+  customSlides.push({
+    id: csIdSeq++,
+    title: `커스텀 슬라이드 ${customSlides.length + 1}`,
+    chartType: 'bar',
+    tableStyle: 'A',
+    tablePos: 'below',
+    groups: defaultGroups,
+  });
+  activeCSIdx = customSlides.length - 1;
+  renderCSTabs();
+  renderCSPanel();
   syncBuilderFromCustomSlides();
 }
 
-function selectCustomSlide(id) {
-  customActiveId = id;
-  renderCustomSlideTabs();
-  renderCustomSlidePanel(id);
+// ── 슬라이드 삭제 ──
+function deleteCustomSlide(idx) {
+  if (!confirm('이 슬라이드를 삭제하시겠습니까?')) return;
+  customSlides.splice(idx, 1);
+  activeCSIdx = Math.min(activeCSIdx, customSlides.length - 1);
+  renderCSTabs();
+  renderCSPanel();
+  syncBuilderFromCustomSlides();
 }
 
-// ── 탭 네비게이션 렌더 ──────────────────────────────────
-function renderCustomSlideTabs() {
-  const nav = document.getElementById('customSlideTabs');
-  if (!nav) return;
-  nav.innerHTML = customSlides.map(s => `
-    <button class="cst-tab ${s.id === customActiveId ? 'active' : ''}"
-      onclick="selectCustomSlide(${s.id})" id="cst_${s.id}">
-      📊 ${s.title}
-    </button>`).join('') +
-    `<button class="cst-tab add" onclick="addCustomSlide()">＋</button>`;
-}
+// ── 패널 렌더링 ──
+function renderCSPanel() {
+  const cont = document.getElementById('customSlidePanel');
+  if (!cont) return;
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 커스텀 슬라이드 편집 패널
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function renderCustomSlidePanel(id) {
-  const slide = customSlides.find(s => s.id === id);
-  const panel = document.getElementById('customSlidePanel');
-  if (!slide || !panel) return;
+  if (activeCSIdx < 0 || activeCSIdx >= customSlides.length) {
+    cont.innerHTML = `<div class="csp-empty">
+      <div>＋ 버튼을 눌러 커스텀 슬라이드를 추가하세요</div>
+      <small>문항을 자유롭게 그룹핑하여 새로운 차트와 표를 생성합니다</small>
+    </div>`;
+    return;
+  }
 
-  const allQs = window._allQuestions || [];
+  const s = customSlides[activeCSIdx];
+  const qs = getAllQuestions();
 
-  const qChecks = allQs.map(q => {
-    const checked = slide.questions.includes(q.id) ? 'checked' : '';
-    const short = q.label.length > 45 ? q.label.slice(0, 45) + '…' : q.label;
-    return `<label class="csp-q-item">
-      <input type="checkbox" ${checked}
-        onchange="toggleCustomQ(${id},'${q.id}',this.checked)">
-      <span class="csp-q-label">${q.id} ${short} <em>${q.avg}</em></span>
-    </label>`;
-  }).join('');
+  let html = '<div class="csp-form">';
 
-  panel.innerHTML = `
-  <div class="csp-form">
-    <div class="csp-row">
-      <div class="csp-field">
-        <label>슬라이드 제목</label>
-        <input value="${slide.title}" oninput="updateCustomSlide(${id},'title',this.value)">
-      </div>
-      <div class="csp-field" style="max-width:140px">
-        <label>차트 종류</label>
-        <select onchange="updateCustomSlide(${id},'chartType',this.value)">
-          <option value="bar" ${slide.chartType==='bar'?'selected':''}>막대 차트</option>
-          <option value="none" ${slide.chartType==='none'?'selected':''}>차트 없음</option>
-        </select>
-      </div>
-      <div class="csp-field" style="max-width:140px">
-        <label>표 위치</label>
-        <select onchange="updateCustomSlide(${id},'tablePos',this.value)">
-          <option value="below" ${slide.tablePos==='below'?'selected':''}>차트 아래</option>
-          <option value="above" ${slide.tablePos==='above'?'selected':''}>차트 위</option>
-          <option value="none"  ${slide.tablePos==='none' ?'selected':''}>표 없음</option>
-        </select>
-      </div>
-      <div class="csp-field">
-        <label>표 제목</label>
-        <input value="${slide.tableTitle}" oninput="updateCustomSlide(${id},'tableTitle',this.value)">
-      </div>
-      <button class="csp-del-btn" onclick="deleteCustomSlide(${id})">🗑 슬라이드 삭제</button>
+  // ── 상단 설정 ──
+  html += `<div class="csp-row">
+    <div class="csp-field" style="flex:2">
+      <label>슬라이드 제목</label>
+      <input value="${s.title}" onchange="updateCS('title',this.value)" placeholder="제목 입력">
     </div>
-
-    <div class="csp-q-section">
-      <div class="csp-q-header">
-        <span>포함 문항 선택 <em>${slide.questions.length}개 선택됨</em></span>
-        <div style="display:flex;gap:6px">
-          <button class="csp-qbtn" onclick="selectAllCustomQ(${id},true)">전체 선택</button>
-          <button class="csp-qbtn" onclick="selectAllCustomQ(${id},false)">전체 해제</button>
-          <button class="csp-qbtn" onclick="selectChunkCustomQ(${id},6)">6개씩 선택</button>
-        </div>
-      </div>
-      <div class="csp-q-grid">${qChecks}</div>
+    <div class="csp-field">
+      <label>차트 유형</label>
+      <select onchange="updateCS('chartType',this.value)">
+        <option value="bar" ${s.chartType === 'bar' ? 'selected' : ''}>세로 막대</option>
+        <option value="horizontalBar" ${s.chartType === 'horizontalBar' ? 'selected' : ''}>가로 막대</option>
+        <option value="line" ${s.chartType === 'line' ? 'selected' : ''}>꺾은선</option>
+        <option value="none" ${s.chartType === 'none' ? 'selected' : ''}>차트 없음</option>
+      </select>
     </div>
-
-    <!-- 미리보기 (차트) -->
-    <div class="csp-preview">
-      <div class="csp-preview-title">📐 미리보기</div>
-      <div class="csp-preview-inner" id="csp_preview_${id}">
-        <canvas id="csp_chart_${id}" style="max-height:200px"></canvas>
-      </div>
-      <div class="csp-preview-table" id="csp_table_${id}"></div>
+    <div class="csp-field">
+      <label>표 스타일</label>
+      <select onchange="updateCS('tableStyle',this.value)">
+        <option value="A" ${s.tableStyle === 'A' ? 'selected' : ''}>Executive Summary (가로)</option>
+        <option value="B" ${s.tableStyle === 'B' ? 'selected' : ''}>정량 평가 (세로)</option>
+        <option value="C" ${s.tableStyle === 'C' ? 'selected' : ''}>과정 개요 (2열)</option>
+        <option value="none" ${s.tableStyle === 'none' ? 'selected' : ''}>표 없음</option>
+      </select>
     </div>
+    <div class="csp-field">
+      <label>표 위치</label>
+      <select onchange="updateCS('tablePos',this.value)">
+        <option value="below" ${s.tablePos === 'below' ? 'selected' : ''}>차트 아래</option>
+        <option value="above" ${s.tablePos === 'above' ? 'selected' : ''}>차트 위</option>
+        <option value="only" ${s.tablePos === 'only' ? 'selected' : ''}>표만</option>
+      </select>
+    </div>
+    <button class="csp-del-btn" onclick="deleteCustomSlide(${activeCSIdx})">삭제</button>
   </div>`;
 
-  renderCustomPreview(id);
+  // ── 그룹 정의 ──
+  html += `<div class="csp-groups-section">
+    <div class="csp-groups-header">
+      <span>📊 그룹 정의 (문항을 묶어서 평균값을 산출합니다)</span>
+      <button class="csp-add-group-btn" onclick="addGroup()">＋ 그룹 추가</button>
+    </div>`;
+
+  s.groups.forEach((g, gi) => {
+    const groupAvg = calcGroupAvg(g.qIds, qs);
+    html += `<div class="csp-group-card" style="border-left-color:${g.color || '#36A86F'}">
+      <div class="csp-group-card-header">
+        <input class="csp-group-name-input" value="${g.name}"
+               onchange="updateGroup(${gi},'name',this.value)" placeholder="그룹명">
+        <span class="csp-group-avg" style="background:${g.color || '#36A86F'}">${groupAvg.toFixed(2)}점</span>
+        <input type="color" value="${g.color || '#36A86F'}" style="width:28px;height:28px;border:none;cursor:pointer"
+               onchange="updateGroup(${gi},'color',this.value)">
+        <button class="csp-group-del" onclick="removeGroup(${gi})">✕</button>
+      </div>
+      <div class="csp-group-q-grid">`;
+
+    qs.forEach(q => {
+      const checked = g.qIds.includes(q.id) ? 'checked' : '';
+      const label = q.label.length > 35 ? q.label.slice(0, 35) + '…' : q.label;
+      html += `<label class="csp-gq-item">
+        <input type="checkbox" ${checked}
+               onchange="toggleGroupQ(${gi},'${q.id}',this.checked)">
+        <span>${q.id}. ${label}</span>
+        <span class="csp-gq-avg">${q.avg}</span>
+      </label>`;
+    });
+
+    html += `</div></div>`;
+  });
+  html += `</div>`;
+
+  // ── 미리보기 ──
+  html += `<div class="csp-preview" id="cspPreview_${s.id}">
+    <div class="csp-preview-title">${s.title}</div>
+    <div class="csp-preview-inner" id="cspPreviewInner_${s.id}"></div>
+  </div>`;
+
+  html += '</div>';
+  cont.innerHTML = html;
+
+  // 차트 + 표 렌더링
+  setTimeout(() => renderCSPreview(s), 50);
 }
 
-// ── 미리보기 렌더 ────────────────────────────────────────
-function renderCustomPreview(id) {
-  const slide = customSlides.find(s => s.id === id);
-  if (!slide) return;
-  const allQs = window._allQuestions || [];
-  const qs = allQs.filter(q => slide.questions.includes(q.id));
+// ── 그룹 평균 계산 ──
+function calcGroupAvg(qIds, allQs) {
+  if (!qIds || qIds.length === 0) return 0;
+  const matched = allQs.filter(q => qIds.includes(q.id));
+  if (matched.length === 0) return 0;
+  return matched.reduce((sum, q) => sum + (q.avg || 0), 0) / matched.length;
+}
+
+// ── 업데이트 함수들 ──
+function updateCS(key, val) {
+  if (activeCSIdx < 0) return;
+  customSlides[activeCSIdx][key] = val;
+  renderCSPanel();
+  syncBuilderFromCustomSlides();
+}
+
+function addGroup() {
+  if (activeCSIdx < 0) return;
+  const colors = ['#36A86F', '#4A90D9', '#E67E22', '#9B59B6', '#E74C3C', '#1ABC9C', '#34495E'];
+  const gi = customSlides[activeCSIdx].groups.length;
+  customSlides[activeCSIdx].groups.push({
+    name: `그룹 ${gi + 1}`,
+    qIds: [],
+    color: colors[gi % colors.length],
+  });
+  renderCSPanel();
+}
+
+function removeGroup(gi) {
+  if (activeCSIdx < 0) return;
+  customSlides[activeCSIdx].groups.splice(gi, 1);
+  renderCSPanel();
+  syncBuilderFromCustomSlides();
+}
+
+function updateGroup(gi, key, val) {
+  if (activeCSIdx < 0) return;
+  customSlides[activeCSIdx].groups[gi][key] = val;
+  if (key === 'name') {
+    // 이름만 바꿀 때는 전체 다시 렌더 안 함
+    syncBuilderFromCustomSlides();
+    return;
+  }
+  renderCSPanel();
+  syncBuilderFromCustomSlides();
+}
+
+function toggleGroupQ(gi, qId, checked) {
+  if (activeCSIdx < 0) return;
+  const g = customSlides[activeCSIdx].groups[gi];
+  if (checked) {
+    if (!g.qIds.includes(qId)) g.qIds.push(qId);
+  } else {
+    g.qIds = g.qIds.filter(id => id !== qId);
+  }
+  renderCSPanel();
+  syncBuilderFromCustomSlides();
+}
+
+// ── 미리보기 렌더링 ──
+function renderCSPreview(s) {
+  const inner = document.getElementById(`cspPreviewInner_${s.id}`);
+  if (!inner) return;
+  const qs = getAllQuestions();
+
+  let html = '';
+
+  // 표 위 (above)
+  if (s.tableStyle !== 'none' && s.tablePos === 'above') {
+    html += renderPreviewTable(s, qs);
+  }
 
   // 차트
-  const canvasEl = document.getElementById(`csp_chart_${id}`);
-  if (canvasEl) {
-    // 기존 차트 파기
-    if (window._cspCharts && window._cspCharts[id]) {
-      try { window._cspCharts[id].destroy(); } catch(e) {}
-    }
-    if (!window._cspCharts) window._cspCharts = {};
+  if (s.chartType !== 'none' && s.groups.length > 0) {
+    html += `<div class="csp-chart-wrap"><canvas id="csChart_${s.id}" height="150"></canvas></div>`;
+  }
 
-    if (slide.chartType === 'bar' && qs.length > 0) {
-      canvasEl.style.display = '';
-      window._cspCharts[id] = new Chart(canvasEl, {
-        type: 'bar',
-        data: {
-          labels: qs.map(q => q.label.length > 14 ? q.label.slice(0,14)+'…' : q.label),
-          datasets: [{
-            data: qs.map(q => q.avg),
-            backgroundColor: qs.map(q =>
-              q.avg >= 4.5 ? '#10b981' : q.avg >= 4.0 ? '#2563eb' : '#f59e0b'
-            ),
-            borderRadius: 4,
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false },
-            tooltip: { callbacks: { label: ctx => `${ctx.raw.toFixed(2)}점` } }
-          },
-          scales: {
-            y: { min: 3, max: 5, ticks: { stepSize: 0.5 } },
-            x: { ticks: { font: { size: 10 } } }
-          }
+  // 표 아래 (below) 또는 표만 (only)
+  if (s.tableStyle !== 'none' && (s.tablePos === 'below' || s.tablePos === 'only')) {
+    html += renderPreviewTable(s, qs);
+  }
+
+  inner.innerHTML = html;
+
+  // 차트 그리기
+  if (s.chartType !== 'none' && s.groups.length > 0) {
+    renderCSChart(s, qs);
+  }
+}
+
+// ── 차트 미리보기 ──
+const csChartInstances = {};
+function renderCSChart(s, qs) {
+  const canvasId = `csChart_${s.id}`;
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  if (csChartInstances[s.id]) csChartInstances[s.id].destroy();
+
+  const labels = s.groups.map(g => g.name);
+  const values = s.groups.map(g => calcGroupAvg(g.qIds, qs));
+  const colors = s.groups.map(g => g.color || '#36A86F');
+
+  const isHorizontal = s.chartType === 'horizontalBar';
+  const chartType = s.chartType === 'line' ? 'line' : 'bar';
+
+  csChartInstances[s.id] = new Chart(canvas.getContext('2d'), {
+    type: chartType,
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.map(c => c + '99'),
+        borderColor: colors,
+        borderWidth: 2,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: isHorizontal ? 'y' : 'x',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ctx.parsed[isHorizontal ? 'x' : 'y'].toFixed(2) + '점' }
         }
-      });
-    } else {
-      canvasEl.style.display = 'none';
+      },
+      scales: {
+        [isHorizontal ? 'x' : 'y']: {
+          beginAtZero: true,
+          max: 5,
+          ticks: { font: { size: 10 } }
+        },
+        [isHorizontal ? 'y' : 'x']: {
+          ticks: { font: { size: 10, family: "'Nanum Gothic'" } }
+        }
+      }
     }
-  }
-
-  // 표
-  const tableEl = document.getElementById(`csp_table_${id}`);
-  if (tableEl && slide.tablePos !== 'none' && qs.length > 0) {
-    tableEl.innerHTML = `
-      <div class="csp-tbl-title">${slide.tableTitle}</div>
-      <table class="score-table" style="font-size:12px">
-        <thead><tr><th>번호</th><th>문항</th><th>평균</th><th>평가</th></tr></thead>
-        <tbody>${qs.map(q => `
-          <tr>
-            <td>${q.id}</td>
-            <td>${q.label}</td>
-            <td class="${q.avg>=4.5?'score-high':q.avg>=4?'score-mid':'score-low'}">${q.avg.toFixed(2)}</td>
-            <td>${q.avg>=4.5?'상':q.avg>=4?'중':'하'}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
-    tableEl.style.display = '';
-  } else if (tableEl) {
-    tableEl.style.display = 'none';
-  }
+  });
 }
 
-// ── 상태 업데이트 ────────────────────────────────────────
-function updateCustomSlide(id, key, val) {
-  const slide = customSlides.find(s => s.id === id);
-  if (!slide) return;
-  slide[key] = val;
-  // 탭 이름 업데이트
-  if (key === 'title') {
-    const tabEl = document.getElementById(`cst_${id}`);
-    if (tabEl) tabEl.textContent = `📊 ${val}`;
-  }
-  // 디바운스로 미리보기 + 빌더 동기화
-  clearTimeout(_previewDebounce);
-  _previewDebounce = setTimeout(() => {
-    renderCustomPreview(id);
-    syncBuilderFromCustomSlides();
-  }, 400);
+// ── 표 미리보기 ──
+function renderPreviewTable(s, qs) {
+  if (s.tableStyle === 'A') return renderTableA(s, qs);
+  if (s.tableStyle === 'B') return renderTableB(s, qs);
+  if (s.tableStyle === 'C') return renderTableC(s, qs);
+  return '';
 }
 
-function toggleCustomQ(id, qId, checked) {
-  const slide = customSlides.find(s => s.id === id);
-  if (!slide) return;
-  if (checked && !slide.questions.includes(qId)) slide.questions.push(qId);
-  if (!checked) slide.questions = slide.questions.filter(q => q !== qId);
-  // 선택 수 업데이트
-  const panel = document.getElementById(`csp_preview_${id}`)?.closest('.csp-form');
-  if (panel) {
-    const em = panel.querySelector('.csp-q-header em');
-    if (em) em.textContent = `${slide.questions.length}개 선택됨`;
-  }
-  clearTimeout(_previewDebounce);
-  _previewDebounce = setTimeout(() => {
-    renderCustomPreview(id);
-    syncBuilderFromCustomSlides();
-  }, 400);
+// 스타일A: Executive Summary (가로)
+function renderTableA(s, qs) {
+  if (s.groups.length === 0) return '';
+  const overall = calcGroupAvg(qs.map(q => q.id), qs);
+  let html = '<table class="tpl-table-a"><thead><tr>';
+  s.groups.forEach((g, i) => {
+    const isLast = i === s.groups.length - 1;
+    html += `<th${isLast ? ' class="highlight"' : ''}>${g.name}</th>`;
+  });
+  html += `<th class="highlight">과정 전반</th></tr></thead><tbody><tr>`;
+  s.groups.forEach(g => {
+    const avg = calcGroupAvg(g.qIds, qs);
+    html += `<td>${avg.toFixed(2)}</td>`;
+  });
+  html += `<td><strong>${overall.toFixed(2)}</strong></td></tr>`;
+  html += `<tr class="avg-row"><td colspan="${s.groups.length + 1}" style="text-align:left">
+    전체 평균: <strong>${overall.toFixed(2)}</strong>점</td></tr>`;
+  html += '</tbody></table>';
+  return html;
 }
 
-function selectAllCustomQ(id, all) {
-  const slide = customSlides.find(s => s.id === id);
-  if (!slide) return;
-  const allQs = window._allQuestions || [];
-  slide.questions = all ? allQs.map(q => q.id) : [];
-  renderCustomSlidePanel(id);
-  syncBuilderFromCustomSlides();
+// 스타일B: 정량 평가 (세로)
+function renderTableB(s, qs) {
+  let html = '<table class="tpl-table-b"><thead><tr>';
+  html += '<th>항목</th><th>문항</th><th>평균</th><th>응답</th></tr></thead><tbody>';
+  s.groups.forEach(g => {
+    const avg = calcGroupAvg(g.qIds, qs);
+    html += `<tr class="cat-row"><td colspan="2">${g.name}</td><td>${avg.toFixed(2)}</td><td></td></tr>`;
+    const matched = qs.filter(q => g.qIds.includes(q.id));
+    matched.forEach(q => {
+      const cls = q.avg >= 4.5 ? 'score-high' : q.avg < 3.5 ? 'score-low' : '';
+      html += `<tr><td></td><td style="text-align:left">${q.id}. ${q.label}</td>
+               <td class="${cls}">${q.avg?.toFixed(2) || '-'}</td>
+               <td>${q.count || '-'}</td></tr>`;
+    });
+  });
+  html += '</tbody></table>';
+  return html;
 }
 
-function selectChunkCustomQ(id, size) {
-  const slide = customSlides.find(s => s.id === id);
-  if (!slide) return;
-  const allQs = window._allQuestions || [];
-  // 현재 선택된 것들의 마지막 인덱스 이후 size개
-  const lastIdx = allQs.findIndex(q => slide.questions.includes(q.id));
-  const startIdx = lastIdx < 0 ? 0 : lastIdx;
-  slide.questions = allQs.slice(startIdx, startIdx + size).map(q => q.id);
-  renderCustomSlidePanel(id);
-  syncBuilderFromCustomSlides();
+// 스타일C: 2열 키-값
+function renderTableC(s, qs) {
+  let html = '<table class="tpl-table-c"><tbody>';
+  s.groups.forEach(g => {
+    const avg = calcGroupAvg(g.qIds, qs);
+    html += `<tr><td class="key">${g.name}</td><td>${avg.toFixed(2)}점 (${g.qIds.length}문항)</td></tr>`;
+  });
+  const overall = calcGroupAvg(qs.map(q => q.id), qs);
+  html += `<tr><td class="key" style="background:var(--tpl-highlight)">과정 전반</td>
+           <td><strong>${overall.toFixed(2)}점</strong></td></tr>`;
+  html += '</tbody></table>';
+  return html;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 빌더 자동 동기화
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ── 빌더 동기화 ──
 function syncBuilderFromCustomSlides() {
   if (typeof builderState === 'undefined') return;
-  const allQs = window._allQuestions || [];
+  const qs = getAllQuestions();
 
-  // 기존 quant_chart 슬라이드 전부 제거
-  builderState.slides = builderState.slides.filter(s => s.type !== 'quant_chart');
+  // 기존 커스텀 슬라이드를 빌더에서 제거
+  builderState.slides = builderState.slides.filter(s => s.type !== 'custom_quant');
   builderState.quantGroups = [];
 
-  // customSlides 기반으로 재생성
-  const qualIdx = builderState.slides.findIndex(s => s.type === 'qual_text');
-  const insertAt = qualIdx >= 0 ? qualIdx : builderState.slides.length - 1;
+  customSlides.forEach(cs => {
+    builderState.slides.push({
+      type: 'custom_quant',
+      customSlideId: cs.id,
+      label: cs.title,
+      data: {
+        title: cs.title,
+        chartType: cs.chartType,
+        tableStyle: cs.tableStyle,
+        tablePos: cs.tablePos,
+        groups: cs.groups.map(g => ({
+          name: g.name,
+          color: g.color,
+          qIds: g.qIds,
+          avg: calcGroupAvg(g.qIds, qs),
+          questions: qs.filter(q => g.qIds.includes(q.id)),
+        })),
+      },
+    });
 
-  customSlides.forEach((cs, i) => {
-    const questions = allQs.filter(q => cs.questions.includes(q.id));
-    const g = {
-      id: cs.id,
-      title: cs.title,
-      questions,
-      allQuestions: allQs,
-      tablePos: cs.tablePos,
-      tableTitle: cs.tableTitle,
-      chartType: cs.chartType,
-    };
-    builderState.quantGroups.push(g);
-    builderState.slides.splice(insertAt + i, 0, {
-      type: 'quant_chart', groupId: cs.id, data: {}
+    // quantGroups도 업데이트
+    cs.groups.forEach(g => {
+      builderState.quantGroups.push({
+        id: `cs${cs.id}_g${cs.groups.indexOf(g)}`,
+        title: g.name,
+        questions: qs.filter(q => g.qIds.includes(q.id)),
+      });
     });
   });
 
-  if (typeof renderSlideList === 'function') renderSlideList();
-  if (typeof refreshBuilderMiniList === 'function') refreshBuilderMiniList();
+  // 빌더 리프레시
+  if (typeof refreshBuilderSlideList === 'function') refreshBuilderSlideList();
+  if (typeof refreshBuilderPreview === 'function') refreshBuilderPreview();
 }
+
+// ── window에 노출 ──
+window.initCustomSlides = initCustomSlides;
+window.customSlides = customSlides;
+window.analysisData = window.analysisData || null;

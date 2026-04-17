@@ -1,171 +1,242 @@
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   커스텀 슬라이드 구성 시스템
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   커스텀 슬라이드 + 빌더 미리보기 — 템플릿 매칭 디자인
+   Font: 나눔바른고딕·나눔스퀘어 → Nanum Gothic (Google)
+   Colors: #36A86F(green) #D9D9D9(header) #E7E6E6(alt) #F0BEF8(highlight)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
+
+:root {
+  --tpl-green: #36A86F;
+  --tpl-green-light: #e8f5ee;
+  --tpl-header-bg: #D9D9D9;
+  --tpl-alt-bg: #E7E6E6;
+  --tpl-highlight: #F0BEF8;
+  --tpl-font: 'Nanum Gothic', '나눔바른고딕', sans-serif;
+  --tpl-dark: #222;
+  --tpl-white: #fff;
+}
+
+/* ── 버튼: 슬라이드 추가 ── */
 .add-custom-slide-btn {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
-  color: #fff;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity .15s;
+  background: linear-gradient(135deg, var(--tpl-green), #2d8f5e);
+  color: #fff; border: none; padding: 6px 14px;
+  border-radius: 8px; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s;
 }
 .add-custom-slide-btn:hover { opacity: .85; }
 
-/* 탭 네비게이션 */
+/* ── 서브탭 네비 ── */
 .custom-slide-tabs {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-  border-bottom: 2px solid var(--gray-200);
-  padding-bottom: 8px;
+  display: flex; gap: 4px; flex-wrap: wrap;
+  margin-bottom: 12px; border-bottom: 2px solid var(--tpl-header-bg); padding-bottom: 8px;
 }
 .cst-tab {
-  padding: 6px 14px;
-  border-radius: 8px 8px 0 0;
-  border: 1px solid var(--gray-200);
-  border-bottom: none;
-  background: var(--gray-100);
-  color: var(--gray-700);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all .15s;
-  white-space: nowrap;
+  padding: 6px 14px; border-radius: 8px 8px 0 0;
+  border: 1px solid var(--tpl-header-bg); border-bottom: none;
+  background: #f5f5f5; color: var(--tpl-dark);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .15s; white-space: nowrap; font-family: var(--tpl-font);
 }
 .cst-tab.active {
-  background: #fff;
-  color: var(--brand);
-  border-color: var(--gray-200);
-  border-bottom-color: #fff;
-  margin-bottom: -2px;
+  background: #fff; color: var(--tpl-green);
+  border-color: var(--tpl-header-bg); border-bottom-color: #fff; margin-bottom: -2px;
 }
-.cst-tab:hover:not(.active) { background: var(--gray-200); }
+.cst-tab:hover:not(.active) { background: var(--tpl-alt-bg); }
 .cst-tab.add {
-  background: none;
-  border: 1px dashed var(--brand);
-  color: var(--brand);
-  font-size: 14px;
-  font-weight: 800;
+  background: none; border: 1px dashed var(--tpl-green);
+  color: var(--tpl-green); font-size: 14px; font-weight: 800;
 }
-.cst-tab.add:hover { background: var(--brand-light); }
+.cst-tab.add:hover { background: var(--tpl-green-light); }
 
-/* 패널 */
+/* ── 패널 ── */
 .custom-slide-panel { min-height: 200px; }
 .csp-empty {
-  text-align: center;
-  padding: 40px;
-  color: var(--gray-500);
-  font-size: 14px;
-  line-height: 2;
+  text-align: center; padding: 40px; color: #999;
+  font-size: 14px; line-height: 2; font-family: var(--tpl-font);
 }
-.csp-empty small { color: var(--gray-400); font-size: 12px; }
+.csp-empty small { color: #bbb; font-size: 12px; }
 
-/* 폼 */
+/* ── 폼 ── */
 .csp-form { display: flex; flex-direction: column; gap: 14px; }
-.csp-row {
-  display: flex;
-  gap: 10px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
+.csp-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .csp-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
-.csp-field label { font-size: 11px; font-weight: 600; color: var(--gray-500); }
+.csp-field label {
+  font-size: 11px; font-weight: 700; color: #666;
+  font-family: var(--tpl-font);
+}
 .csp-field input, .csp-field select {
-  border: 1px solid var(--gray-300);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-family: inherit;
-  outline: none;
+  border: 1px solid #ccc; border-radius: 6px; padding: 6px 10px;
+  font-size: 13px; font-family: var(--tpl-font); outline: none;
   transition: border-color .15s;
 }
-.csp-field input:focus, .csp-field select:focus { border-color: var(--brand); }
+.csp-field input:focus, .csp-field select:focus { border-color: var(--tpl-green); }
 .csp-del-btn {
-  background: none;
-  border: 1px solid var(--danger, #ef4444);
-  color: var(--danger, #ef4444);
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all .15s;
+  background: none; border: 1px solid #ef4444; color: #ef4444;
+  padding: 6px 12px; border-radius: 6px; font-size: 11px;
+  cursor: pointer; white-space: nowrap; transition: all .15s;
 }
 .csp-del-btn:hover { background: #fef2f2; }
 
-/* 문항 선택 */
-.csp-q-section {
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  padding: 12px;
+/* ━━━ 그룹 정의 섹션 ━━━ */
+.csp-groups-section {
+  background: #fafafa; border: 1px solid var(--tpl-header-bg);
+  border-radius: 8px; padding: 12px;
 }
-.csp-q-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--gray-700);
+.csp-groups-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px; font-size: 12px; font-weight: 700; color: #444;
+  font-family: var(--tpl-font);
 }
-.csp-q-header em { color: var(--brand); font-style: normal; margin-left: 4px; }
-.csp-qbtn {
-  background: none;
-  border: 1px solid var(--gray-300);
-  color: var(--gray-700);
-  padding: 3px 8px;
-  border-radius: 5px;
-  font-size: 10px;
-  cursor: pointer;
-  transition: all .15s;
+.csp-add-group-btn {
+  background: var(--tpl-green); color: #fff; border: none;
+  padding: 4px 10px; border-radius: 5px; font-size: 11px;
+  font-weight: 700; cursor: pointer;
 }
-.csp-qbtn:hover { background: var(--brand); color: #fff; border-color: var(--brand); }
-.csp-q-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 3px;
-  max-height: 220px;
-  overflow-y: auto;
+.csp-add-group-btn:hover { opacity: .85; }
+.csp-group-card {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
+  padding: 10px; margin-bottom: 8px;
+  border-left: 4px solid var(--tpl-green);
 }
-.csp-q-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 4px 6px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background .1s;
+.csp-group-card-header {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 8px;
 }
-.csp-q-item:hover { background: var(--brand-light); }
-.csp-q-item input[type=checkbox] { margin-top: 2px; flex-shrink: 0; }
-.csp-q-label { font-size: 11px; color: var(--gray-700); line-height: 1.4; }
-.csp-q-label em { color: var(--brand); font-style: normal; font-weight: 700; margin-left: 4px; }
+.csp-group-name-input {
+  border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px;
+  font-size: 12px; flex: 1; font-family: var(--tpl-font);
+}
+.csp-group-name-input:focus { border-color: var(--tpl-green); outline: none; }
+.csp-group-avg {
+  background: var(--tpl-green); color: #fff; padding: 3px 10px;
+  border-radius: 12px; font-size: 11px; font-weight: 800;
+  white-space: nowrap;
+}
+.csp-group-del {
+  background: none; border: none; color: #ccc; cursor: pointer;
+  font-size: 16px; padding: 0 4px;
+}
+.csp-group-del:hover { color: #ef4444; }
+.csp-group-q-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 2px; max-height: 150px; overflow-y: auto;
+}
+.csp-gq-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 6px; border-radius: 4px; cursor: pointer;
+  transition: background .1s; font-size: 11px; color: #555;
+  font-family: var(--tpl-font);
+}
+.csp-gq-item:hover { background: var(--tpl-green-light); }
+.csp-gq-item input[type=checkbox] { margin: 0; flex-shrink: 0; accent-color: var(--tpl-green); }
+.csp-gq-avg { color: var(--tpl-green); font-weight: 700; margin-left: auto; }
 
-/* 미리보기 */
+/* ━━━ 템플릿 매칭 미리보기 ━━━ */
 .csp-preview {
-  background: #fff;
-  border: 2px solid var(--gray-200);
-  border-radius: 10px;
-  padding: 14px;
-  border-left: 4px solid var(--brand);
+  background: #fff; border: 2px solid #e0e0e0; border-radius: 10px;
+  padding: 16px; position: relative; overflow: hidden;
+  aspect-ratio: 10.8 / 7.5; /* PPT 비율 */
+}
+.csp-preview::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--tpl-green), var(--tpl-highlight));
 }
 .csp-preview-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--brand);
-  margin-bottom: 10px;
+  font-size: 13px; font-weight: 800; color: var(--tpl-green);
+  margin-bottom: 12px; font-family: var(--tpl-font);
+  padding-bottom: 6px; border-bottom: 1px solid #eee;
 }
 .csp-preview-inner { margin-bottom: 10px; }
-.csp-tbl-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--gray-700);
-  margin-bottom: 6px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--gray-200);
+
+/* 표 스타일A: Executive Summary (가로형) */
+.tpl-table-a {
+  width: 100%; border-collapse: collapse; font-family: var(--tpl-font);
+  font-size: 11px;
 }
+.tpl-table-a th {
+  background: #fff; padding: 6px 8px; font-weight: 700;
+  border: 1px solid #ccc; text-align: center; color: var(--tpl-dark);
+}
+.tpl-table-a th.highlight { background: var(--tpl-highlight); }
+.tpl-table-a td {
+  padding: 5px 8px; border: 1px solid #ccc; text-align: center;
+  color: #000;
+}
+.tpl-table-a tr.avg-row td { background: var(--tpl-alt-bg); font-weight: 700; }
+
+/* 표 스타일B: 정량 평가 (세로형) */
+.tpl-table-b {
+  width: 100%; border-collapse: collapse; font-family: var(--tpl-font);
+  font-size: 11px;
+}
+.tpl-table-b th {
+  background: var(--tpl-header-bg); padding: 6px 8px;
+  font-weight: 700; border: 1px solid #bbb; text-align: center;
+}
+.tpl-table-b td {
+  padding: 5px 8px; border: 1px solid #ccc; text-align: center;
+}
+.tpl-table-b tr.cat-row td {
+  background: var(--tpl-alt-bg); font-weight: 700; text-align: left;
+}
+.tpl-table-b td.score-high { color: var(--tpl-green); font-weight: 700; }
+.tpl-table-b td.score-low { color: #e74c3c; font-weight: 700; }
+
+/* 표 스타일C: 과정 개요 (2열) */
+.tpl-table-c {
+  width: 100%; border-collapse: collapse; font-family: var(--tpl-font);
+  font-size: 12px;
+}
+.tpl-table-c td {
+  padding: 8px 12px; border: 1px solid #ccc;
+}
+.tpl-table-c td.key {
+  background: var(--tpl-header-bg); font-weight: 700; width: 30%;
+}
+
+/* ━━━ 빌더 미리보기 슬라이드 ━━━ */
+.builder-slide-preview {
+  font-family: var(--tpl-font);
+  background: #fff;
+  min-height: 300px;
+  padding: 20px;
+}
+.builder-slide-preview .slide-title {
+  font-size: 14px; font-weight: 800; color: var(--tpl-dark);
+  margin-bottom: 12px; padding-bottom: 6px;
+  border-bottom: 2px solid var(--tpl-green);
+}
+.builder-slide-preview .section-num {
+  font-size: 36px; font-weight: 300; color: var(--tpl-green);
+  line-height: 1;
+}
+.builder-slide-preview .section-name {
+  font-size: 20px; font-weight: 700; margin-top: 4px;
+}
+.builder-slide-preview .section-sub {
+  display: inline-block; background: #fff;
+  border: 2px solid var(--tpl-green); color: var(--tpl-green);
+  padding: 4px 16px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; margin-top: 8px;
+}
+
+/* 차트 컨테이너 */
+.csp-chart-wrap {
+  max-height: 180px; margin-bottom: 10px;
+}
+
+/* ── 미니 슬라이드 칩 ── */
+.mini-slide-chip {
+  background: var(--tpl-green-light); color: var(--tpl-green);
+  border: 1px solid rgba(54,168,111,.3); border-radius: 20px;
+  padding: 3px 10px; font-size: 11px; font-weight: 600;
+  white-space: nowrap; font-family: var(--tpl-font);
+}
+
+/* ── 빌더에 추가 버튼 ── */
+.add-to-builder-btn {
+  background: linear-gradient(135deg, var(--tpl-green), #2d8f5e);
+  color: #fff; border: none; padding: 5px 12px; border-radius: 6px;
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  transition: opacity .15s, transform .1s;
+}
+.add-to-builder-btn:hover { opacity: .85; transform: scale(1.03); }

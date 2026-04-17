@@ -1,256 +1,1528 @@
 [
   {
-    "slide": 1,
-    "layout": "1_앞표지",
-    "shapes": [
+    "index": 1,
+    "texts": [
+      {
+        "shape": "제목 5",
+        "text": "고객사명\u000b과정명\u000b과정운영 결과보고서",
+        "font": {
+          "name": "맑은 고딕",
+          "size": "304800",
+          "bold": true,
+          "color": ""
+        }
+      }
+    ],
+    "tables": [],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "그룹 6",
-        "type": "GROUP (6)"
+        "type": "GROUP (6)",
+        "pos": "0.9,3.3",
+        "size": "0.4x0.4"
       },
       {
         "name": "제목 5",
         "type": "TEXT_BOX (17)",
-        "text": "고객사명\u000b과정명\u000b과정운영 결과보고서"
+        "pos": "0.8,1.6",
+        "size": "6.1x1.0"
       }
     ]
   },
   {
-    "slide": 2,
-    "layout": "2_목차",
-    "shapes": [
+    "index": 2,
+    "texts": [],
+    "tables": [
+      {
+        "rows": 3,
+        "cols": 3,
+        "data": [
+          [
+            {
+              "text": "Ⅰ",
+              "bg": "",
+              "font": {
+                "name": "나눔스퀘어",
+                "size": "266700",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": ".  실시개요",
+              "bg": "",
+              "font": {
+                "name": "나눔스퀘어",
+                "size": "266700",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "3",
+              "bg": "",
+              "font": {
+                "name": "나눔스퀘어",
+                "size": "228600",
+                "bold": false,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "Ⅱ",
+              "bg": "",
+              "font": {
+                "name": "나눔스퀘어",
+                "size": "266700",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": ".  만족도 결과",
+              "bg": "",
+              "font": {
+                "name": "나눔스퀘어",
+                "size": "266700",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "8",
+              "bg": "",
+              "font": {
+                "name": "나눔스퀘어",
+                "size": "228600",
+                "bold": false,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {
+                "name": "나눔스퀘어",
+                "size": "266700",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ]
+        ]
+      }
+    ],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "표 4",
-        "type": "TABLE (19)"
+        "type": "TABLE (19)",
+        "pos": "6.5,4.4",
+        "size": "3.8x2.3"
       },
       {
         "name": "직선 연결선 5",
-        "type": "LINE (9)"
+        "type": "LINE (9)",
+        "pos": "6.6,5.2",
+        "size": "3.7x0.0"
       },
       {
         "name": "직선 연결선 6",
-        "type": "LINE (9)"
+        "type": "LINE (9)",
+        "pos": "6.6,5.9",
+        "size": "3.7x0.0"
       }
     ]
   },
   {
-    "slide": 3,
-    "layout": "1_캡션 있는 그림",
-    "shapes": [
+    "index": 3,
+    "texts": [
+      {
+        "shape": "TextBox 12",
+        "text": "Ⅰ",
+        "font": {
+          "name": "나눔스퀘어 Light",
+          "size": "914400",
+          "bold": null,
+          "color": ""
+        }
+      },
+      {
+        "shape": "TextBox 14",
+        "text": "과정 개요",
+        "font": {
+          "name": "나눔스퀘어",
+          "size": "457200",
+          "bold": null,
+          "color": ""
+        }
+      },
+      {
+        "shape": "Rectangle 3",
+        "text": "실시 개요",
+        "font": {
+          "name": "KoPubWorld돋움체 Bold",
+          "size": "406400",
+          "bold": false,
+          "color": "36A86F"
+        }
+      }
+    ],
+    "tables": [],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "TextBox 12",
         "type": "TEXT_BOX (17)",
-        "text": "Ⅰ"
+        "pos": "0.4,0.7",
+        "size": "0.9x1.3"
       },
       {
         "name": "TextBox 14",
         "type": "TEXT_BOX (17)",
-        "text": "과정 개요"
+        "pos": "0.4,2.1",
+        "size": "1.9x0.8"
       },
       {
         "name": "Freeform 5",
         "type": "FREEFORM (5)",
-        "text": ""
+        "pos": "5.4,2.4",
+        "size": "0.2x0.4"
       },
       {
         "name": "Rectangle 3",
         "type": "TEXT_BOX (17)",
-        "text": "실시 개요"
+        "pos": "4.5,3.6",
+        "size": "1.8x0.6"
       }
     ]
   },
   {
-    "slide": 4,
-    "layout": "5_캡션 없는 콘텐츠",
-    "shapes": [
+    "index": 4,
+    "texts": [
+      {
+        "shape": "TextBox 224",
+        "text": "과정 개요",
+        "font": {
+          "name": "KoPubWorld돋움체 Medium",
+          "size": "177800",
+          "bold": null,
+          "color": ""
+        }
+      }
+    ],
+    "tables": [
+      {
+        "rows": 7,
+        "cols": 2,
+        "data": [
+          [
+            {
+              "text": "과정명",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "고객사명_과정명",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "과정 목적",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "과정 내용",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "데이터 분석 결과에 따른 모듈명을 작성할것",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": null,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "교육 일정",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "교육일정",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": null,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "장소",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "교육장소",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": null,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "교육 대상자",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "대상자",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": null,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "강사",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "강사",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": null,
+                "color": ""
+              }
+            }
+          ]
+        ]
+      }
+    ],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "표 5",
-        "type": "TABLE (19)"
+        "type": "TABLE (19)",
+        "pos": "0.4,1.6",
+        "size": "10.1x5.3"
       },
       {
         "name": "사각형: 둥근 모서리 3",
         "type": "AUTO_SHAPE (1)",
-        "text": ""
+        "pos": "0.4,1.0",
+        "size": "10.1x0.5"
       },
       {
         "name": "TextBox 224",
         "type": "TEXT_BOX (17)",
-        "text": "과정 개요"
+        "pos": "1.0,1.2",
+        "size": "2.4x0.2"
       },
       {
         "name": "Freeform 26",
         "type": "FREEFORM (5)",
-        "text": ""
+        "pos": "0.6,1.1",
+        "size": "0.2x0.3"
       }
     ]
   },
   {
-    "slide": 5,
-    "layout": "5_캡션 없는 콘텐츠",
-    "shapes": [
+    "index": 5,
+    "texts": [
+      {
+        "shape": "TextBox 224",
+        "text": "교육 일정표",
+        "font": {
+          "name": "KoPubWorld돋움체 Medium",
+          "size": "177800",
+          "bold": null,
+          "color": ""
+        }
+      }
+    ],
+    "tables": [
+      {
+        "rows": 9,
+        "cols": 2,
+        "data": [
+          [
+            {
+              "text": "구 분",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "09:00 ~ 10:00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "10:00 ~ 11:00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "11:00 ~ 12:00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "12:00 ~ 13:00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "중식",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "13:00 ~ 14:00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "14:00 ~ 15:00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "15:00 ~ 16:00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "16:00 ~ 17:00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "152400",
+                "bold": false,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ]
+        ]
+      }
+    ],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "사각형: 둥근 모서리 3",
         "type": "AUTO_SHAPE (1)",
-        "text": ""
+        "pos": "0.4,1.0",
+        "size": "10.1x0.5"
       },
       {
         "name": "TextBox 224",
         "type": "TEXT_BOX (17)",
-        "text": "교육 일정표"
+        "pos": "1.0,1.2",
+        "size": "2.4x0.2"
       },
       {
         "name": "그래픽 2",
-        "type": "GROUP (6)"
+        "type": "GROUP (6)",
+        "pos": "0.6,1.1",
+        "size": "0.2x0.3"
       },
       {
         "name": "표 1",
-        "type": "TABLE (19)"
+        "type": "TABLE (19)",
+        "pos": "0.4,1.7",
+        "size": "10.1x5.2"
       }
     ]
   },
   {
-    "slide": 6,
-    "layout": "빈 화면",
-    "shapes": [
+    "index": 6,
+    "texts": [
+      {
+        "shape": "TextBox 11",
+        "text": "표지",
+        "font": {
+          "name": "나눔바른고딕",
+          "size": "133350",
+          "bold": null,
+          "color": ""
+        }
+      }
+    ],
+    "tables": [],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "TextBox 11",
         "type": "TEXT_BOX (17)",
-        "text": "표지"
+        "pos": "9.8,0.7",
+        "size": "0.6x0.3"
       },
       {
         "name": "그림 개체 틀 2",
         "type": "PLACEHOLDER (14)",
-        "text": ""
+        "pos": "1.4,1.7",
+        "size": "3.7x5.2"
       },
       {
         "name": "그림 개체 틀 5",
         "type": "PLACEHOLDER (14)",
-        "text": ""
+        "pos": "5.8,1.7",
+        "size": "3.7x5.2"
       }
     ]
   },
   {
-    "slide": 7,
-    "layout": "3_빈 화면",
-    "shapes": [
+    "index": 7,
+    "texts": [
+      {
+        "shape": "TextBox 11",
+        "text": "내용",
+        "font": {
+          "name": "나눔바른고딕",
+          "size": "133350",
+          "bold": null,
+          "color": ""
+        }
+      }
+    ],
+    "tables": [],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "TextBox 11",
         "type": "TEXT_BOX (17)",
-        "text": "내용"
+        "pos": "9.8,0.7",
+        "size": "0.6x0.3"
       },
       {
         "name": "그림 개체 틀 2",
         "type": "PLACEHOLDER (14)",
-        "text": ""
+        "pos": "0.4,1.6",
+        "size": "2.8x3.9"
       },
       {
         "name": "그림 개체 틀 4",
         "type": "PLACEHOLDER (14)",
-        "text": ""
+        "pos": "2.2,2.0",
+        "size": "2.8x3.9"
       },
       {
         "name": "그림 개체 틀 6",
         "type": "PLACEHOLDER (14)",
-        "text": ""
+        "pos": "4.0,2.3",
+        "size": "2.8x3.9"
       },
       {
         "name": "그림 개체 틀 8",
         "type": "PLACEHOLDER (14)",
-        "text": ""
+        "pos": "7.7,3.0",
+        "size": "2.8x3.9"
       },
       {
         "name": "그림 개체 틀 10",
         "type": "PLACEHOLDER (14)",
-        "text": ""
+        "pos": "5.9,2.7",
+        "size": "2.8x3.9"
       }
     ]
   },
   {
-    "slide": 8,
-    "layout": "1_캡션 있는 그림",
-    "shapes": [
+    "index": 8,
+    "texts": [
+      {
+        "shape": "TextBox 12",
+        "text": "Ⅱ",
+        "font": {
+          "name": "나눔스퀘어 Light",
+          "size": "914400",
+          "bold": null,
+          "color": ""
+        }
+      },
+      {
+        "shape": "TextBox 14",
+        "text": "만족도 결과",
+        "font": {
+          "name": "나눔스퀘어",
+          "size": "457200",
+          "bold": null,
+          "color": ""
+        }
+      },
+      {
+        "shape": "Rectangle 3",
+        "text": "만족도 결과",
+        "font": {
+          "name": "KoPubWorld돋움체 Bold",
+          "size": "406400",
+          "bold": false,
+          "color": "36A86F"
+        }
+      }
+    ],
+    "tables": [],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "TextBox 12",
         "type": "TEXT_BOX (17)",
-        "text": "Ⅱ"
+        "pos": "0.4,0.7",
+        "size": "0.9x1.3"
       },
       {
         "name": "TextBox 14",
         "type": "TEXT_BOX (17)",
-        "text": "만족도 결과"
+        "pos": "0.4,2.1",
+        "size": "2.4x0.8"
       },
       {
         "name": "Rectangle 3",
         "type": "TEXT_BOX (17)",
-        "text": "만족도 결과"
+        "pos": "4.3,3.6",
+        "size": "2.2x0.6"
       },
       {
         "name": "Freeform 7",
         "type": "FREEFORM (5)",
-        "text": ""
+        "pos": "5.3,2.4",
+        "size": "0.3x0.4"
       }
     ]
   },
   {
-    "slide": 9,
-    "layout": "6_캡션 없는 콘텐츠",
-    "shapes": [
+    "index": 9,
+    "texts": [
+      {
+        "shape": "TextBox 224",
+        "text": "Executive Summary",
+        "font": {
+          "name": "",
+          "size": "203200",
+          "bold": null,
+          "color": ""
+        }
+      }
+    ],
+    "tables": [
+      {
+        "rows": 3,
+        "cols": 6,
+        "data": [
+          [
+            {
+              "text": "교육 내용 만족도",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "강사 만족도",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "교육 운영 만족도",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "교육 성과 만족도",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "과정 전반 만족도",
+              "bg": "F0BEF8",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": true,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "5.00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": false,
+                "color": "000000"
+              }
+            },
+            {
+              "text": "5.00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": false,
+                "color": "000000"
+              }
+            },
+            {
+              "text": "4.93",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": false,
+                "color": "000000"
+              }
+            },
+            {
+              "text": "5.00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": false,
+                "color": "000000"
+              }
+            },
+            {
+              "text": "5.00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": false,
+                "color": "000000"
+              }
+            },
+            {
+              "text": "5.00",
+              "bg": "",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": false,
+                "color": "000000"
+              }
+            }
+          ],
+          [
+            {
+              "text": "4.99",
+              "bg": "E7E6E6",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "139700",
+                "bold": true,
+                "color": "000000"
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            }
+          ]
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "type": "COLUMN_CLUSTERED (51)",
+        "name": "차트 5"
+      }
+    ],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "TextBox 224",
         "type": "TEXT_BOX (17)",
-        "text": "Executive Summary"
+        "pos": "0.9,1.2",
+        "size": "2.2x0.3"
       },
       {
         "name": "그룹 1",
-        "type": "GROUP (6)"
+        "type": "GROUP (6)",
+        "pos": "0.4,1.9",
+        "size": "2.0x0.2"
       },
       {
         "name": "차트 5",
         "type": "CHART (3)",
-        "chart_type": "COLUMN_CLUSTERED (51)"
+        "pos": "0.4,2.1",
+        "size": "10.0x3.6"
       },
       {
         "name": "표 6",
-        "type": "TABLE (19)"
+        "type": "TABLE (19)",
+        "pos": "0.4,5.8",
+        "size": "10.0x1.1"
       }
     ]
   },
   {
-    "slide": 10,
-    "layout": "6_캡션 없는 콘텐츠",
-    "shapes": [
+    "index": 10,
+    "texts": [
+      {
+        "shape": "제목 2",
+        "text": "정량 평가 결과",
+        "font": {
+          "name": "",
+          "size": "",
+          "bold": null,
+          "color": ""
+        }
+      }
+    ],
+    "tables": [
+      {
+        "rows": 18,
+        "cols": 4,
+        "data": [
+          [
+            {
+              "text": "항목",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "문항",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "평균",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "응답인원",
+              "bg": "D9D9D9",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            }
+          ],
+          [
+            {
+              "text": "교육 내용",
+              "bg": "E7E6E6",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "강사",
+              "bg": "E7E6E6",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "교육 운영",
+              "bg": "E7E6E6",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "교육 성과",
+              "bg": "E7E6E6",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "이노체인저로서의\n인식 변화",
+              "bg": "E7E6E6",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "",
+              "bg": "E7E6E6",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ],
+          [
+            {
+              "text": "과정 전반",
+              "bg": "E7E6E6",
+              "font": {
+                "name": "나눔바른고딕 Light",
+                "size": "146050",
+                "bold": true,
+                "color": ""
+              }
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            },
+            {
+              "text": "",
+              "bg": "",
+              "font": {}
+            }
+          ]
+        ]
+      }
+    ],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "제목 2",
         "type": "PLACEHOLDER (14)",
-        "text": "정량 평가 결과"
+        "pos": "1.0,1.2",
+        "size": "9.3x0.3"
       },
       {
         "name": "표 1",
-        "type": "TABLE (19)"
+        "type": "TABLE (19)",
+        "pos": "0.4,1.7",
+        "size": "10.1x5.3"
       }
     ]
   },
   {
-    "slide": 11,
-    "layout": "6_캡션 없는 콘텐츠",
-    "shapes": [
+    "index": 11,
+    "texts": [
+      {
+        "shape": "제목 2",
+        "text": "정성 평가 결과",
+        "font": {
+          "name": "",
+          "size": "",
+          "bold": null,
+          "color": ""
+        }
+      }
+    ],
+    "tables": [],
+    "charts": [],
+    "images": [],
+    "shapes_detail": [
       {
         "name": "제목 2",
         "type": "PLACEHOLDER (14)",
-        "text": "정성 평가 결과"
+        "pos": "1.0,1.2",
+        "size": "9.3x0.3"
       },
       {
         "name": "그룹 17",
-        "type": "GROUP (6)"
+        "type": "GROUP (6)",
+        "pos": "0.4,1.8",
+        "size": "10.1x2.3"
       },
       {
         "name": "그룹 7",
-        "type": "GROUP (6)"
+        "type": "GROUP (6)",
+        "pos": "0.4,4.5",
+        "size": "10.1x2.3"
       }
     ]
   },
   {
-    "slide": 12,
-    "layout": "뒤표지",
-    "shapes": []
+    "index": 12,
+    "texts": [],
+    "tables": [],
+    "charts": [],
+    "images": [],
+    "shapes_detail": []
   }
 ]

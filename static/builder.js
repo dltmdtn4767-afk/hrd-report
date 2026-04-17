@@ -261,90 +261,140 @@ function selectSlide(idx) {
 function renderPreview(slide) {
   const el = document.getElementById('slidePreview');
   if (!el) return;
-  // 차트 인스턴스 파기
   Object.values(builderState.previewCharts).forEach(c => { try { c.destroy(); } catch(e){} });
   builderState.previewCharts = {};
   el.innerHTML = renderPreviewHTML(slide, false);
-  // 차트 생성 (full)
   if (slide.type === 'summary') renderSummaryPreviewChart(slide.data);
   if (slide.type === 'quant_chart') renderQuantPreviewChart(slide.groupId);
+  if (slide.type === 'custom_quant') renderCustomQuantPreviewChart(slide);
 }
 
 function renderPreviewHTML(slide, mini) {
   const d = slide.data || {};
   const scale = mini ? 'style="transform:scale(0.28);transform-origin:top left;width:357%;height:357%"' : '';
+  const font = "'Nanum Gothic',sans-serif";
   switch (slide.type) {
     case 'cover':
-      return `<div class="pv pv-cover" ${scale}>
-        <div class="co-name">${d.company || '고객사명'}</div>
-        <div class="co-course">${d.course || '과정명'}</div>
-        <div class="co-title">과정운영 결과보고서</div>
+      return `<div class="builder-slide-preview" ${scale} style="background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;min-height:300px">
+        <div style="font-size:16px;font-weight:300;opacity:.7;margin-bottom:8px">${d.company || '고객사명'}</div>
+        <div style="font-size:22px;font-weight:800;margin-bottom:6px">${d.course || '과정명'}</div>
+        <div style="font-size:14px;font-weight:700;color:#36A86F">과정운영 결과보고서</div>
       </div>`;
     case 'toc':
-      return `<div class="pv pv-content" ${scale}>
-        <div class="pv-slide-title">목 차</div>
-        <div style="padding:8px;font-size:10px;color:#334155">
-          <div>Ⅰ. 과정 개요</div><div>Ⅱ. 만족도 결과</div>
-        </div>
+      return `<div class="builder-slide-preview" ${scale}>
+        <div class="slide-title">목 차</div>
+        <table class="tpl-table-c" style="width:60%">
+          <tr><td class="key">Ⅰ</td><td>과정 개요</td></tr>
+          <tr><td class="key">Ⅱ</td><td>만족도 결과</td></tr>
+        </table>
       </div>`;
     case 'section1':
-      return `<div class="pv pv-section" ${scale}>
-        <div class="pv-section-num">Ⅰ</div>
-        <div class="pv-section-title">과정 개요</div>
+      return `<div class="builder-slide-preview" ${scale} style="display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:300px">
+        <div class="section-num">Ⅰ</div>
+        <div class="section-name">과정 개요</div>
+        <div class="section-sub">실시 개요</div>
       </div>`;
     case 'section2':
-      return `<div class="pv pv-section" ${scale}>
-        <div class="pv-section-num">Ⅱ</div>
-        <div class="pv-section-title">만족도 결과</div>
+      return `<div class="builder-slide-preview" ${scale} style="display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:300px">
+        <div class="section-num">Ⅱ</div>
+        <div class="section-name">만족도 결과</div>
+        <div class="section-sub">만족도 결과</div>
       </div>`;
     case 'overview':
-      return `<div class="pv pv-content" ${scale}>
-        <div class="pv-slide-title">과정 개요</div>
-        <table class="pv-table">${(d.rows||[]).map(r=>`<tr><th>${r.key}</th><td>${r.val||'—'}</td></tr>`).join('')}</table>
+      return `<div class="builder-slide-preview" ${scale}>
+        <div class="slide-title">과정 개요</div>
+        <table class="tpl-table-c">${(d.rows||[]).map(r=>`<tr><td class="key">${r.key}</td><td>${r.val||'—'}</td></tr>`).join('')}</table>
       </div>`;
     case 'schedule':
-      return `<div class="pv pv-content" ${scale}>
-        <div class="pv-slide-title">교육 일정표</div>
-        <table class="pv-table"><tr><th>차수</th><th>일자</th><th>장소</th><th>인원</th></tr>
-        ${(d.rows||[]).map(r=>`<tr><td>${r.label}</td><td>${r.date||'—'}</td><td>${r.place||'—'}</td><td>${r.count||'—'}</td></tr>`).join('')}
+      return `<div class="builder-slide-preview" ${scale}>
+        <div class="slide-title">교육 일정표</div>
+        <table class="tpl-table-b">
+          <thead><tr><th>차수</th><th>일자</th><th>장소</th><th>인원</th></tr></thead>
+          <tbody>${(d.rows||[]).map(r=>`<tr><td>${r.label}</td><td>${r.date||'—'}</td><td>${r.place||'—'}</td><td>${r.count||'—'}</td></tr>`).join('')}</tbody>
         </table>
       </div>`;
-    case 'summary':
-      return `<div class="pv pv-content" ${scale}>
-        <div class="pv-slide-title">Executive Summary</div>
-        <div class="pv-chart-area" id="pvSummaryChart" style="height:60%">
-          <canvas id="pvSummaryCanvas" style="max-height:100%"></canvas>
-        </div>
-        <table class="pv-table">
-          <tr><th>전체 평균</th><th>응답 인원</th><th>문항 수</th></tr>
-          <tr><td>${(d.overall||0).toFixed(2)}점</td><td>${d.response_count||0}명</td><td>${(d.categories||[]).reduce((a,c)=>a+c.questions.length,0)}개</td></tr>
-        </table>
+    case 'summary': {
+      const cats = d.categories || [];
+      let tableHtml = '<table class="tpl-table-a"><thead><tr>';
+      cats.forEach(c => { tableHtml += `<th>${c.name.length>8?c.name.slice(0,8)+'…':c.name}</th>`; });
+      tableHtml += '<th class="highlight">과정 전반</th></tr></thead><tbody><tr>';
+      cats.forEach(c => { tableHtml += `<td>${(c.avg||0).toFixed(2)}</td>`; });
+      tableHtml += `<td><strong>${(d.overall||0).toFixed(2)}</strong></td></tr>`;
+      tableHtml += `<tr class="avg-row"><td colspan="${cats.length+1}" style="text-align:left">전체 평균: <strong>${(d.overall||0).toFixed(2)}</strong>점 / 응답: ${d.response_count||0}명</td></tr></tbody></table>`;
+      return `<div class="builder-slide-preview" ${scale}>
+        <div class="slide-title">Executive Summary</div>
+        <div style="height:55%" id="pvSummaryChart"><canvas id="pvSummaryCanvas" style="max-height:100%"></canvas></div>
+        ${tableHtml}
       </div>`;
+    }
     case 'quant_chart': {
       const g = builderState.quantGroups.find(g => g.id === slide.groupId);
-      return `<div class="pv pv-content" ${scale}>
-        <div class="pv-slide-title">${g ? g.title : '정량 평가'}</div>
-        <div class="pv-chart-area" id="pvQuantChart${slide.groupId}" style="height:70%">
-          <canvas id="pvQuantCanvas${slide.groupId}" style="max-height:100%"></canvas>
-        </div>
+      let tableHtml = '';
+      if (g && g.questions) {
+        tableHtml = '<table class="tpl-table-b"><thead><tr><th>항목</th><th>문항</th><th>평균</th><th>응답</th></tr></thead><tbody>';
+        g.questions.forEach(q => {
+          const cls = q.avg >= 4.5 ? 'score-high' : q.avg < 3.5 ? 'score-low' : '';
+          tableHtml += `<tr><td></td><td style="text-align:left;font-size:10px">${q.label}</td><td class="${cls}">${q.avg?.toFixed(2)||'-'}</td><td>${q.count||'-'}</td></tr>`;
+        });
+        tableHtml += '</tbody></table>';
+      }
+      return `<div class="builder-slide-preview" ${scale}>
+        <div class="slide-title">${g ? g.title : '정량 평가'}</div>
+        <div style="height:50%" id="pvQuantChart${slide.groupId}"><canvas id="pvQuantCanvas${slide.groupId}" style="max-height:100%"></canvas></div>
+        ${tableHtml}
+      </div>`;
+    }
+    case 'custom_quant': {
+      const cs = d || {};
+      const groups = cs.groups || [];
+      let chartHtml = '';
+      if (cs.chartType !== 'none') {
+        chartHtml = `<div style="height:45%" id="pvCustomChart_${slide.customSlideId}"><canvas id="pvCustomCanvas_${slide.customSlideId}" style="max-height:100%"></canvas></div>`;
+      }
+      let tableHtml = '';
+      if (cs.tableStyle === 'A') {
+        tableHtml = '<table class="tpl-table-a"><thead><tr>';
+        groups.forEach(g => { tableHtml += `<th>${g.name}</th>`; });
+        const allAvg = groups.length ? (groups.reduce((s,g)=>s+g.avg,0)/groups.length) : 0;
+        tableHtml += '<th class="highlight">과정 전반</th></tr></thead><tbody><tr>';
+        groups.forEach(g => { tableHtml += `<td>${g.avg.toFixed(2)}</td>`; });
+        tableHtml += `<td><strong>${allAvg.toFixed(2)}</strong></td></tr></tbody></table>`;
+      } else if (cs.tableStyle === 'B') {
+        tableHtml = '<table class="tpl-table-b"><thead><tr><th>항목</th><th>문항</th><th>평균</th><th>응답</th></tr></thead><tbody>';
+        groups.forEach(g => {
+          tableHtml += `<tr class="cat-row"><td colspan="2">${g.name}</td><td>${g.avg.toFixed(2)}</td><td></td></tr>`;
+          (g.questions||[]).forEach(q => {
+            const cls = q.avg >= 4.5 ? 'score-high' : q.avg < 3.5 ? 'score-low' : '';
+            tableHtml += `<tr><td></td><td style="text-align:left;font-size:10px">${q.label}</td><td class="${cls}">${q.avg?.toFixed(2)||'-'}</td><td>${q.count||'-'}</td></tr>`;
+          });
+        });
+        tableHtml += '</tbody></table>';
+      } else if (cs.tableStyle === 'C') {
+        tableHtml = '<table class="tpl-table-c"><tbody>';
+        groups.forEach(g => { tableHtml += `<tr><td class="key">${g.name}</td><td>${g.avg.toFixed(2)}점 (${g.qIds?.length||0}문항)</td></tr>`; });
+        tableHtml += '</tbody></table>';
+      }
+      const isAbove = cs.tablePos === 'above';
+      return `<div class="builder-slide-preview" ${scale}>
+        <div class="slide-title">${cs.title || '커스텀 슬라이드'}</div>
+        ${isAbove ? tableHtml : ''}
+        ${chartHtml}
+        ${!isAbove ? tableHtml : ''}
       </div>`;
     }
     case 'qual_text':
-      return `<div class="pv pv-content" ${scale}>
-        <div class="pv-slide-title">정성 평가 결과</div>
-        <div style="font-size:9px;color:#475569;line-height:1.6;padding:4px">
-          공통응답 편집기에서 수정한 내용이 반영됩니다.
+      return `<div class="builder-slide-preview" ${scale}>
+        <div class="slide-title">정성 평가 결과</div>
+        <div style="font-size:10px;color:#475569;line-height:1.8;padding:8px">
+          공통응답 그룹핑 결과가 이 슬라이드에 표시됩니다.
         </div>
       </div>`;
-    case 'photo':
-      return `<div class="pv pv-content" ${scale}>
-        <div class="pv-slide-title">교육 현장</div>
-        <div class="pv-chart-area" style="color:#94a3b8;font-size:10px">이미지 영역</div>
-      </div>`;
     case 'back_cover':
-      return `<div class="pv pv-back" ${scale}>EXPERT CONSULTING</div>`;
+      return `<div class="builder-slide-preview" ${scale} style="background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;display:flex;justify-content:center;align-items:center;min-height:300px;font-size:18px;font-weight:300;letter-spacing:3px">
+        EXPERT CONSULTING
+      </div>`;
     default:
-      return `<div class="pv pv-content" ${scale}><div class="pv-slide-title">${slide.type}</div></div>`;
+      return `<div class="builder-slide-preview" ${scale}><div class="slide-title">${slide.type}</div></div>`;
   }
 }
 
@@ -352,16 +402,17 @@ function renderSummaryPreviewChart(data) {
   const canvas = document.getElementById('pvSummaryCanvas');
   if (!canvas || !data.categories) return;
   const cats = data.categories;
+  const colors = ['#36A86F','#4A90D9','#E67E22','#9B59B6','#E74C3C','#1ABC9C'];
   builderState.previewCharts.summary = new Chart(canvas, {
     type: 'bar',
     data: {
       labels: cats.map(c => c.name.length > 8 ? c.name.slice(0,8)+'…' : c.name),
-      datasets: [{ data: cats.map(c => c.avg), backgroundColor: '#2563eb', borderRadius: 3 }]
+      datasets: [{ data: cats.map(c => c.avg), backgroundColor: cats.map((_,i) => colors[i%colors.length]+'99'), borderColor: cats.map((_,i) => colors[i%colors.length]), borderWidth: 2, borderRadius: 4 }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
-      scales: { y: { min: 3, max: 5 }, x: { ticks: { font: { size: 8 } } } }
+      scales: { y: { min: 3, max: 5 }, x: { ticks: { font: { size: 9, family: "'Nanum Gothic'" } } } }
     }
   });
 }
@@ -375,14 +426,49 @@ function renderQuantPreviewChart(groupId) {
     type: 'bar',
     data: {
       labels: g.questions.map(q => q.label.length > 12 ? q.label.slice(0,12)+'…' : q.label),
-      datasets: [{ data: g.questions.map(q => q.avg), backgroundColor: '#7c3aed', borderRadius: 3 }]
+      datasets: [{ data: g.questions.map(q => q.avg), backgroundColor: '#36A86F99', borderColor: '#36A86F', borderWidth: 2, borderRadius: 4 }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
-      scales: { y: { min: 3, max: 5 }, x: { ticks: { font: { size: 8 } } } }
+      scales: { y: { min: 3, max: 5 }, x: { ticks: { font: { size: 8, family: "'Nanum Gothic'" } } } }
     }
   });
+}
+
+function renderCustomQuantPreviewChart(slide) {
+  const cs = slide.data || {};
+  const groups = cs.groups || [];
+  if (cs.chartType === 'none' || !groups.length) return;
+  const canvasId = `pvCustomCanvas_${slide.customSlideId}`;
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const isHoriz = cs.chartType === 'horizontalBar';
+  const type = cs.chartType === 'line' ? 'line' : 'bar';
+  const colors = groups.map(g => g.color || '#36A86F');
+  builderState.previewCharts[`custom_${slide.customSlideId}`] = new Chart(canvas, {
+    type,
+    data: {
+      labels: groups.map(g => g.name),
+      datasets: [{ data: groups.map(g => g.avg || 0), backgroundColor: colors.map(c=>c+'99'), borderColor: colors, borderWidth: 2, borderRadius: 4 }]
+    },
+    options: {
+      indexAxis: isHoriz ? 'y' : 'x',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        [isHoriz?'x':'y']: { min: 0, max: 5 },
+        [isHoriz?'y':'x']: { ticks: { font: { size: 9, family: "'Nanum Gothic'" } } }
+      }
+    }
+  });
+}
+
+// 빌더 리프레시 (custom_slides.js에서 호출)
+function refreshBuilderSlideList() { renderSlideList(); }
+function refreshBuilderPreview() {
+  const slide = builderState.slides[builderState.activeIdx];
+  if (slide) renderPreview(slide);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

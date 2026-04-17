@@ -136,8 +136,15 @@ function renderDashboard(d, gd) {
   // 보고서 빌더 초기화
   window._builderData = d;
   window._qualBuilderData = gd;
+  // custom_slides.js용 데이터 노출
+  const _mr = d.multi_result || {};
+  window.analysisData = {
+    summary: d.summary,
+    sessions: _mr.sessions || [],
+    combined: _mr.combined || _mr.sessions?.[0] || {},
+  };
   if (typeof initBuilder === 'function') initBuilder(d);
-  if (typeof initCustomSlides === 'function') initCustomSlides(d);
+  if (typeof initCustomSlides === 'function') initCustomSlides();
 }
 
 
