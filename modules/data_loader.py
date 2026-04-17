@@ -10,6 +10,21 @@ import openpyxl
 from modules.config_manager import resolve_path
 
 
+def _label_similarity(a: str, b: str) -> float:
+    """두 문항 라벨의 유사도 (0~1). 간단한 bigram 기반."""
+    if not a or not b:
+        return 0.0
+    a, b = a.lower().strip(), b.lower().strip()
+    if a == b:
+        return 1.0
+    def bigrams(s):
+        return set(s[i:i+2] for i in range(len(s)-1))
+    ba, bb = bigrams(a), bigrams(b)
+    if not ba or not bb:
+        return 0.0
+    return len(ba & bb) / max(len(ba | bb), 1)
+
+
 def parse_course_info_from_filename(filepath):
     """파일명에서 고객사/과정명을 자동 추출"""
     basename = os.path.splitext(os.path.basename(filepath))[0]
@@ -605,17 +620,44 @@ def _combine_sessions(sessions, course_info):
             "per_session": cat_per_session,
         })
     
-    # 주관식 병합
+    # 주관식 병합 — 3중 검증 (id + label 유사도 + 응답 내용 일관성)
     all_oe_ids = []
     combined_oe = []
     for s in sessions:
         for oe in s.get("open_ended", []):
-            if oe["id"] not in all_oe_ids:
-                all_oe_ids.append(oe["id"])
-                combined_oe.append({"id": oe["id"], "label": oe["label"], "answers": list(oe["answers"])})
+            oe_id = oe["id"]
+            oe_label = oe["label"].strip()
+            oe_answers = list(oe.get("answers", []))
+
+            # ── 검증 1: id 기반 매칭 ──
+            existing = None
+            for x in combined_oe:
+                if x["id"] == oe_id:
+                    existing = x
+                    break
+
+            if existing:
+                # ── 검증 2: label 유사도 확인 ──
+                ex_label = existing["label"].strip()
+                label_match = (
+                    oe_label == ex_label or
+                    oe_label in ex_label or
+                    ex_label in oe_label or
+                    _label_similarity(oe_label, ex_label) >= 0.6
+                )
+                if label_match:
+                    # ── 검증 3: 중복 응답 제거 후 병합 ──
+                    existing_set = set(existing["answers"])
+                    new_answers = [a for a in oe_answers if a not in existing_set]
+                    existing["answers"].extend(new_answers)
+                    print(f"[QA-MERGE] {oe_id} '{oe_label}' 병합 (+{len(new_answers)}건)")
+                else:
+                    # label 불일치 → 별도 문항으로 분리
+                    new_id = f"{oe_id}_{s.get('session_label','')}"
+                    combined_oe.append({"id": new_id, "label": oe_label, "answers": oe_answers})
+                    print(f"[QA-SPLIT] {oe_id} label 불일치: '{ex_label}' vs '{oe_label}' → {new_id}")
             else:
-                existing = next(x for x in combined_oe if x["id"] == oe["id"])
-                existing["answers"].extend(oe["answers"])
+                combined_oe.append({"id": oe_id, "label": oe_label, "answers": oe_answers})
     
     total_resp = sum(s["response_count"] for s in sessions)
     all_avgs = [q["avg"] for q in combined_questions if q["avg"] > 0]

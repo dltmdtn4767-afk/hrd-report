@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/custom_slides.css">
 </head>
 <body>
 
@@ -170,6 +171,20 @@
       </div>
       <div id="builderSlidesList" class="builder-slides-mini"></div>
     </div>
+
+    <!-- 커스텀 슬라이드 섬네일 영역 -->
+    <div class="section-card" id="customSlidesSection">
+      <div class="section-header">
+        <h3>📊 커스텀 슬라이드 구성</h3>
+        <button class="add-custom-slide-btn" onclick="addCustomSlide()">구성  슬라이드 추가</button>
+      </div>
+      <!-- 커스텀 탭 네비게이션 -->
+      <div class="custom-slide-tabs" id="customSlideTabs"></div>
+      <!-- 커스텀 탭 콘텐츠 -->
+      <div class="custom-slide-panel" id="customSlidePanel">
+        <div class="csp-empty">+ 슬라이드 추가 버튼을 눌러 커스텀 슬라이드를 만든주세요<br><small>슬라이드 = 보고서에서 PPT 1장</small></div>
+      </div>
+    </div>
   </div>
 
   <!-- TAB: 정성 평가 -->
@@ -231,6 +246,7 @@
 
 </main>
 <script src="/static/app.js"></script>
+<script src="/static/custom_slides.js"></script>
 <script src="/static/builder.js"></script>
 </body>
 </html>

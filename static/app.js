@@ -136,6 +136,7 @@ function renderDashboard(d, gd) {
   window._builderData = d;
   window._qualBuilderData = gd;
   if (typeof initBuilder === 'function') initBuilder(d);
+  if (typeof initCustomSlides === 'function') initCustomSlides(d);
 }
 
 
@@ -512,6 +513,21 @@ function renderSessionCompare(sessions, combined) {
 }
 
 // ── 탭: 정성 평가 ────────────────────────────
+// ── 정성 정렬 ─────────────────────────────────────
+function setQualSort(order) {
+  qualSortOrder = order;
+  // 버튼 active 토글
+  ['sortDesc','sortAsc','sortId'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
+  const activeId = order === 'desc' ? 'sortDesc' : order === 'asc' ? 'sortAsc' : 'sortId';
+  const activeEl = document.getElementById(activeId);
+  if (activeEl) activeEl.classList.add('active');
+  // 재렌더
+  if (qualDataCache) renderQualTab(mergeQualData(qualDataCache));
+}
+
 function renderQualTab(gd) {
   const container = document.getElementById('qualContent');
   const emptyEl = document.getElementById('qualEmpty');
@@ -524,12 +540,27 @@ function renderQualTab(gd) {
   }
   emptyEl.style.display = 'none';
 
-  // Q번호 순으로 정렬 (Q1 < Q3 < Q9 < Q10)
-  items = [...items].sort((a, b) => {
-    const numA = parseInt((a.id || '').replace(/\D/g, '')) || 999;
-    const numB = parseInt((b.id || '').replace(/\D/g, '')) || 999;
-    return numA - numB;
-  });
+  // 정렬 적용
+  items = [...items];
+  if (qualSortOrder === 'id') {
+    items.sort((a, b) => {
+      const numA = parseInt((a.id || '').replace(/\D/g, '')) || 999;
+      const numB = parseInt((b.id || '').replace(/\D/g, '')) || 999;
+      return numA - numB;
+    });
+  } else if (qualSortOrder === 'desc') {
+    items.sort((a, b) => {
+      const cntA = (a.groups||[]).filter(g=>g.is_common).reduce((s,g)=>s+g.count,0);
+      const cntB = (b.groups||[]).filter(g=>g.is_common).reduce((s,g)=>s+g.count,0);
+      return cntB - cntA;
+    });
+  } else { // asc
+    items.sort((a, b) => {
+      const cntA = (a.groups||[]).filter(g=>g.is_common).reduce((s,g)=>s+g.count,0);
+      const cntB = (b.groups||[]).filter(g=>g.is_common).reduce((s,g)=>s+g.count,0);
+      return cntA - cntB;
+    });
+  }
 
   items.forEach(oe => {
     const common = (oe.groups || []).filter(g => g.is_common);

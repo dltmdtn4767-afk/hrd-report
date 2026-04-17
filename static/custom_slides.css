@@ -1,0 +1,171 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   커스텀 슬라이드 구성 시스템
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.add-custom-slide-btn {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.add-custom-slide-btn:hover { opacity: .85; }
+
+/* 탭 네비게이션 */
+.custom-slide-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--gray-200);
+  padding-bottom: 8px;
+}
+.cst-tab {
+  padding: 6px 14px;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid var(--gray-200);
+  border-bottom: none;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.cst-tab.active {
+  background: #fff;
+  color: var(--brand);
+  border-color: var(--gray-200);
+  border-bottom-color: #fff;
+  margin-bottom: -2px;
+}
+.cst-tab:hover:not(.active) { background: var(--gray-200); }
+.cst-tab.add {
+  background: none;
+  border: 1px dashed var(--brand);
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 800;
+}
+.cst-tab.add:hover { background: var(--brand-light); }
+
+/* 패널 */
+.custom-slide-panel { min-height: 200px; }
+.csp-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--gray-500);
+  font-size: 14px;
+  line-height: 2;
+}
+.csp-empty small { color: var(--gray-400); font-size: 12px; }
+
+/* 폼 */
+.csp-form { display: flex; flex-direction: column; gap: 14px; }
+.csp-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.csp-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
+.csp-field label { font-size: 11px; font-weight: 600; color: var(--gray-500); }
+.csp-field input, .csp-field select {
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+}
+.csp-field input:focus, .csp-field select:focus { border-color: var(--brand); }
+.csp-del-btn {
+  background: none;
+  border: 1px solid var(--danger, #ef4444);
+  color: var(--danger, #ef4444);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.csp-del-btn:hover { background: #fef2f2; }
+
+/* 문항 선택 */
+.csp-q-section {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 12px;
+}
+.csp-q-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+}
+.csp-q-header em { color: var(--brand); font-style: normal; margin-left: 4px; }
+.csp-qbtn {
+  background: none;
+  border: 1px solid var(--gray-300);
+  color: var(--gray-700);
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.csp-qbtn:hover { background: var(--brand); color: #fff; border-color: var(--brand); }
+.csp-q-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 3px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.csp-q-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background .1s;
+}
+.csp-q-item:hover { background: var(--brand-light); }
+.csp-q-item input[type=checkbox] { margin-top: 2px; flex-shrink: 0; }
+.csp-q-label { font-size: 11px; color: var(--gray-700); line-height: 1.4; }
+.csp-q-label em { color: var(--brand); font-style: normal; font-weight: 700; margin-left: 4px; }
+
+/* 미리보기 */
+.csp-preview {
+  background: #fff;
+  border: 2px solid var(--gray-200);
+  border-radius: 10px;
+  padding: 14px;
+  border-left: 4px solid var(--brand);
+}
+.csp-preview-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand);
+  margin-bottom: 10px;
+}
+.csp-preview-inner { margin-bottom: 10px; }
+.csp-tbl-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--gray-200);
+}

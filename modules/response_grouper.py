@@ -198,25 +198,74 @@ async def group_responses_ai(open_ended_item, ai_engine):
 
 
 async def process_all_open_ended(open_ended_list, ai_engine=None):
-    """모든 주관식 문항에 공통응답 그룹핑 적용 (문항 간 혼합 없음)"""
+    """모든 주관식 문항에 공통응답 그룹핑 적용 — 3중 검증 포함"""
     result = []
+    
+    # ── 사전 준비: 전체 문항별 응답 집합 (교차 오염 탐지용) ──
+    answer_ownership = {}  # answer_text → oe_id
     for oe in open_ended_list:
+        for ans in oe.get("answers", []):
+            ans_key = ans.strip().lower()
+            if ans_key not in answer_ownership:
+                answer_ownership[ans_key] = oe.get("id", "")
+    
+    for oe in open_ended_list:
+        oe_id = oe.get("id", "")
+        oe_label = oe.get("label", "")
         answers = oe.get("answers", [])
+        
         if not answers:
             result.append({**oe, "groups": [], "individual_count": 0, "common_count": 0})
             continue
         
+        # ── 검증 1: 응답이 이 문항 소속인지 확인 ──
+        valid_answers = []
+        for ans in answers:
+            ans_key = ans.strip().lower()
+            owner = answer_ownership.get(ans_key, oe_id)
+            if owner == oe_id:
+                valid_answers.append(ans)
+            else:
+                print(f"[QA-CHECK1] '{ans[:30]}...' → {oe_id}에서 제거 (원래 {owner} 소속)")
+        
+        if not valid_answers:
+            result.append({**oe, "groups": [], "individual_count": 0, "common_count": 0})
+            continue
+        
+        # 필터링된 응답으로 oe 교체
+        oe_clean = {**oe, "answers": valid_answers}
+        
         # 문항별 독립 그룹핑
-        groups = await group_responses_ai(oe, ai_engine)
+        groups = await group_responses_ai(oe_clean, ai_engine)
+        
+        # ── 검증 2: 그룹 내 응답이 원본 answers에 실재하는지 확인 ──
+        answer_set = set(a.strip().lower() for a in valid_answers)
+        for g in groups:
+            g_answers = g.get("answers", [])
+            verified = [a for a in g_answers if a.strip().lower() in answer_set]
+            if len(verified) != len(g_answers):
+                removed = len(g_answers) - len(verified)
+                print(f"[QA-CHECK2] {oe_id} 그룹 '{g.get('label','')}': {removed}건 잘못된 응답 제거")
+            g["answers"] = verified
+            g["count"] = len(verified)
+        
+        # 빈 그룹 제거
+        groups = [g for g in groups if g["count"] > 0]
+        
+        # ── 검증 3: 전체 그룹 응답 수 vs 원본 응답 수 일관성 ──
+        total_grouped = sum(g["count"] for g in groups)
+        if total_grouped > len(valid_answers) * 1.5:
+            print(f"[QA-CHECK3] ⚠ {oe_id} 그룹 합계({total_grouped}) > 원본({len(valid_answers)})*1.5 — 비정상")
         
         common_groups = [g for g in groups if g.get("is_common")]
         individual_groups = [g for g in groups if not g.get("is_common")]
         
         result.append({
             **oe,
+            "answers": valid_answers,  # 검증된 응답만
             "groups": groups,
-            "common_groups": common_groups,       # 공통응답만
-            "individual_responses": individual_groups,  # 개별 응답
+            "common_groups": common_groups,
+            "individual_responses": individual_groups,
             "common_count": len(common_groups),
             "individual_count": len(individual_groups),
             "total_grouped": sum(g["count"] for g in common_groups),

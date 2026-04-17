@@ -14,7 +14,7 @@ from pptx.chart.data import ChartData
 from pptx.enum.chart import XL_CHART_TYPE
 
 BASE_DIR = Path(__file__).parent.parent
-TEMPLATE_PATH = BASE_DIR / "templates" / "[결과보고서] 템플렛.pptx"
+TEMPLATE_PATH = BASE_DIR / "templates" / "template.pptx"
 OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
