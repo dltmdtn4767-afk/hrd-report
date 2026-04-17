@@ -528,6 +528,156 @@ async def export_element(payload: dict):
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_fn}"},
     )
 
+@app.post("/api/export_slide")
+async def export_slide(payload: dict):
+    """차트+표 합쳐서 하나의 슬라이드에 넣은 PPTX 생성
+    payload: { title: str, chart: {labels,values,chartType,colors}|null, table: {headers,rows}|null }
+    """
+    from pptx import Presentation as Prs
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.chart.data import ChartData
+    from pptx.enum.chart import XL_CHART_TYPE
+    from pptx.enum.text import PP_ALIGN
+    from urllib.parse import quote
+    import tempfile
+
+    title = payload.get("title", "슬라이드")
+    chart_data = payload.get("chart")
+    table_data = payload.get("table")
+
+    prs = Prs()
+    prs.slide_width = Inches(13.33)
+    prs.slide_height = Inches(7.5)
+    blank_layout = prs.slide_layouts[6]
+    slide = prs.slides.add_slide(blank_layout)
+
+    # 제목
+    from pptx.util import Inches, Pt
+    txBox = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(12), Inches(0.5))
+    tf = txBox.text_frame
+    p = tf.paragraphs[0]
+    p.text = title
+    p.font.size = Pt(18)
+    p.font.bold = True
+    p.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+
+    has_chart = chart_data is not None
+    has_table = table_data is not None
+
+    if has_chart and has_table:
+        chart_top, chart_h = Inches(0.8), Inches(3.8)
+        table_top = Inches(4.8)
+    elif has_chart:
+        chart_top, chart_h = Inches(0.8), Inches(5.5)
+        table_top = None
+    else:
+        chart_top, chart_h = None, None
+        table_top = Inches(0.8)
+
+    # ── 차트 ──
+    if has_chart:
+        labels = chart_data.get("labels", [])
+        values = chart_data.get("values", [])
+        colors_hex = chart_data.get("colors", [])
+        chart_type_str = chart_data.get("chartType", "bar")
+
+        cd = ChartData()
+        cd.categories = labels
+        cd.add_series('평균', [round(v, 2) for v in values])
+
+        ct = XL_CHART_TYPE.COLUMN_CLUSTERED
+        if chart_type_str == "horizontalBar":
+            ct = XL_CHART_TYPE.BAR_CLUSTERED
+        elif chart_type_str == "line":
+            ct = XL_CHART_TYPE.LINE
+
+        chart_frame = slide.shapes.add_chart(
+            ct, Inches(0.8), chart_top, Inches(11.5), chart_h, cd
+        )
+        chart = chart_frame.chart
+        chart.has_legend = False
+
+        # 데이터 라벨
+        plot = chart.plots[0]
+        plot.has_data_labels = True
+        data_labels = plot.data_labels
+        data_labels.font.size = Pt(9)
+        data_labels.font.bold = True
+        data_labels.number_format = '0.00'
+
+        # 막대 색상
+        if ct != XL_CHART_TYPE.LINE:
+            plot.gap_width = 80
+            series = plot.series[0]
+            for i, c_hex in enumerate(colors_hex):
+                if i < len(series.points):
+                    pt = series.points[i]
+                    c_hex_clean = c_hex.lstrip('#')
+                    pt.format.fill.solid()
+                    pt.format.fill.fore_color.rgb = RGBColor(
+                        int(c_hex_clean[0:2],16), int(c_hex_clean[2:4],16), int(c_hex_clean[4:6],16)
+                    )
+
+        # Y축 최대값
+        value_axis = chart.value_axis
+        value_axis.maximum_scale = 5.0
+        value_axis.minimum_scale = 0
+        value_axis.major_gridlines.format.line.color.rgb = RGBColor(0xDD, 0xDD, 0xDD)
+
+    # ── 표 ──
+    if has_table:
+        headers = table_data.get("headers", [])
+        rows_data = table_data.get("rows", [])
+        n_cols = len(headers)
+        n_rows = 1 + len(rows_data)
+
+        tbl_h = Emu(int(Inches(0.3).emu * n_rows))
+        tbl_shape = slide.shapes.add_table(
+            n_rows, n_cols,
+            Inches(0.8), table_top, Inches(11.5), tbl_h
+        )
+        tbl = tbl_shape.table
+
+        # 헤더
+        for ci, h in enumerate(headers):
+            cell = tbl.cell(0, ci)
+            cell.text = str(h)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = RGBColor(0x36, 0xA8, 0x6F)
+            for p in cell.text_frame.paragraphs:
+                p.alignment = PP_ALIGN.CENTER
+                for r in p.runs:
+                    r.font.size = Pt(10)
+                    r.font.bold = True
+                    r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+
+        # 데이터
+        for ri, row in enumerate(rows_data):
+            for ci, val in enumerate(row):
+                if ci < n_cols and ri + 1 < n_rows:
+                    cell = tbl.cell(ri + 1, ci)
+                    cell.text = str(val)
+                    for p in cell.text_frame.paragraphs:
+                        p.alignment = PP_ALIGN.CENTER
+                        for r in p.runs:
+                            r.font.size = Pt(9)
+
+    # 저장
+    out_dir = BASE_DIR / "output"
+    out_dir.mkdir(exist_ok=True)
+    safe_title = title.replace(' ','_')[:20]
+    filename = f"{safe_title}.pptx"
+    out_path = out_dir / filename
+    prs.save(str(out_path))
+
+    safe_fn = quote(filename)
+    return FileResponse(
+        str(out_path),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_fn}"},
+    )
+
 @app.post("/api/upload_template/{session_id}")
 async def upload_template(session_id: str, file: UploadFile = File(...)):
     """PPT 템플릿 업로드 — 세션에 저장"""

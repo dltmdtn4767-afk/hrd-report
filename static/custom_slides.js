@@ -34,11 +34,7 @@ function renderCSTabs() {
   let html = '';
   customSlides.forEach((s, i) => {
     const isActive = i === activeCSIdx ? 'active' : '';
-    html += `<span style="display:inline-flex;align-items:center;gap:2px">
-      <button class="cst-tab ${isActive}" onclick="selectCSTab(${i})">${s.title || '슬라이드 ' + (i + 1)}</button>
-      <button class="ppt-export-btn" style="padding:4px 6px;font-size:10px" onclick="copyCSChartToClipboard(${i})" title="차트 이미지 복사">📊</button>
-      <button class="ppt-export-btn" style="padding:4px 6px;font-size:10px" onclick="copyCSTableToClipboard(${i})" title="표 복사">📋</button>
-    </span>`;
+    html += `<button class="cst-tab ${isActive}" onclick="selectCSTab(${i})">${s.title || '슬라이드 ' + (i + 1)}</button>`;
   });
   html += `<button class="cst-tab add" onclick="addCustomSlide()">＋</button>`;
   cont.innerHTML = html;
@@ -197,15 +193,10 @@ function renderCSPanel() {
     <div class="csp-preview-inner" id="cspPreviewInner_${s.id}"></div>
   </div>`;
 
-  // ── 클립보드 복사 버튼 ──
-  html += `<div class="ppt-export-row" style="margin-top:12px">`;
-  if (s.chartType !== 'none') {
-    html += `<button class="ppt-export-btn" onclick="copyCSChartToClipboard(${activeCSIdx})">📊 차트 복사 (Ctrl+V)</button>`;
-  }
-  if (s.tableStyle !== 'none') {
-    html += `<button class="ppt-export-btn" onclick="copyCSTableToClipboard(${activeCSIdx})">📋 표 복사 (Ctrl+V)</button>`;
-  }
-  html += `</div>`;
+  // ── PPTX 다운로드 (차트+표 함께) ──
+  html += `<div class="ppt-export-row" style="margin-top:12px;justify-content:center">
+    <button class="ppt-export-btn" style="padding:8px 20px;font-size:12px" onclick="downloadCSSlide(${activeCSIdx})">📥 이 슬라이드 PPTX 다운로드 (차트+표 → PPT에서 편집 가능)</button>
+  </div>`;
 
   html += '</div>';
   cont.innerHTML = html;
@@ -564,9 +555,68 @@ function _showCopyToast2(msg) {
   alert(msg);
 }
 
+// ── 차트+표 합쳐서 PPTX 다운로드 ──
+async function downloadCSSlide(idx) {
+  const s = customSlides[idx];
+  if (!s) return;
+  const qs = getAllQuestions();
+
+  // 차트 데이터
+  const chartData = s.chartType !== 'none' ? {
+    labels: s.groups.map(g => g.name),
+    values: s.groups.map(g => calcGroupAvg(g.qIds, qs)),
+    chartType: s.chartType === 'horizontalBar' ? 'horizontalBar' : s.chartType === 'line' ? 'line' : 'bar',
+    colors: s.groups.map(g => g.color || '#36A86F')
+  } : null;
+
+  // 표 데이터
+  let tableData = null;
+  if (s.tableStyle !== 'none') {
+    let headers = [], rows = [];
+    if (s.tableStyle === 'A') {
+      headers = [...s.groups.map(g => g.name), '과정 전반'];
+      const vals = s.groups.map(g => calcGroupAvg(g.qIds, qs).toFixed(2));
+      const overall = calcGroupAvg(qs.map(q => q.id), qs).toFixed(2);
+      rows = [[...vals, overall]];
+    } else if (s.tableStyle === 'B') {
+      headers = ['항목', '문항', '평균', '응답'];
+      s.groups.forEach(g => {
+        rows.push([g.name, '', calcGroupAvg(g.qIds, qs).toFixed(2), '']);
+        qs.filter(q => g.qIds.includes(q.id)).forEach(q => {
+          rows.push(['', q.label||'', (q.avg||0).toFixed(2), q.count||'']);
+        });
+      });
+    } else {
+      headers = ['항목', '결과'];
+      s.groups.forEach(g => {
+        rows.push([g.name, `${calcGroupAvg(g.qIds, qs).toFixed(2)}점`]);
+      });
+    }
+    tableData = { headers, rows };
+  }
+
+  try {
+    const r = await fetch('/api/export_slide', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title: s.title, chart: chartData, table: tableData })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${s.title}.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (typeof _showCopyToast === 'function')
+      _showCopyToast(`📥 ${s.title}.pptx → 열어서 Ctrl+C → PPT에 Ctrl+V`);
+  } catch(e) { alert('다운로드 실패: '+e.message); }
+}
+
 // ── window에 노출 ──
 window.initCustomSlides = initCustomSlides;
 window.customSlides = customSlides;
+window.downloadCSSlide = downloadCSSlide;
 window.copyCSChartToClipboard = copyCSChartToClipboard;
 window.copyCSTableToClipboard = copyCSTableToClipboard;
 window.toggleColorUnify = toggleColorUnify;
