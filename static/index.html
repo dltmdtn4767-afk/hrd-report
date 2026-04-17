@@ -66,6 +66,7 @@
     <button class="tab-btn active" data-tab="overview">📋 개요</button>
     <button class="tab-btn" data-tab="quant">📊 정량 평가</button>
     <button class="tab-btn" data-tab="qual">💬 정성 평가</button>
+    <button class="tab-btn builder-tab-btn" data-tab="builder">📄 보고서 빌더</button>
   </nav>
 
   <!-- TAB: 개요 -->
@@ -179,8 +180,36 @@
     </div>
   </div>
 
-</main>
+<!-- TAB: 보고서 빌더 -->
+<div class="tab-content" id="tab-builder">
+  <div class="builder-wrap">
 
+    <!-- 왼쪽: 슬라이드 목록 -->
+    <aside class="builder-sidebar">
+      <div class="sidebar-header">
+        <span>슬라이드 구성</span>
+        <button class="build-ppt-btn" id="buildPptBtn" onclick="buildPPT()">📥 PPT 생성</button>
+      </div>
+      <div class="slide-list" id="slideList"></div>
+    </aside>
+
+    <!-- 오른쪽: 편집 패널 -->
+    <main class="builder-main">
+      <!-- 미리보기 -->
+      <div class="slide-preview-wrap">
+        <div class="slide-preview" id="slidePreview"></div>
+      </div>
+      <!-- 편집 폼 -->
+      <div class="slide-editor" id="slideEditor">
+        <div class="editor-empty">왼쪽 슬라이드를 클릭하여 편집하세요</div>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+</main>
 <script src="/static/app.js"></script>
+<script src="/static/builder.js"></script>
 </body>
 </html>

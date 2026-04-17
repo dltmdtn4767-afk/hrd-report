@@ -350,7 +350,34 @@ async def generate(session_id: str):
         return {"success": False, "error": str(e)}
 
 
+@app.post("/api/build_ppt/{session_id}")
+async def build_ppt(session_id: str, payload: dict):
+    """보고서 빌더 → 커스텀 PPT 생성"""
+    if session_id not in sessions:
+        raise HTTPException(404, "세션 없음")
+    sess = sessions[session_id]
+
+    try:
+        from modules.builder_generator import build_custom_ppt
+        slides    = payload.get("slides", [])
+        q_groups  = payload.get("quant_groups", [])
+        qual_data = payload.get("qual_data", [])
+        data      = sess.get("data", {})
+
+        output_path = build_custom_ppt(slides, q_groups, qual_data, data, config)
+        filename = os.path.basename(output_path)
+        return FileResponse(
+            output_path,
+            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(500, f"빌더 PPT 생성 실패: {e}")
+
+
 @app.post("/api/modify/{session_id}")
+
 async def modify(session_id: str, request: dict):
     """수정 요청 → AI 해석 → 재생성"""
     if session_id not in sessions:

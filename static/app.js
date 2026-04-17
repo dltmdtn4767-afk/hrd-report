@@ -131,7 +131,13 @@ function renderDashboard(d, gd) {
   renderQuantTab(d);
   qualDataCache = gd;
   renderQualTab(mergeQualData(gd));
+
+  // 보고서 빌더 초기화
+  window._builderData = d;
+  window._qualBuilderData = gd;
+  if (typeof initBuilder === 'function') initBuilder(d);
 }
+
 
 // ── 탭: 개요 ─────────────────────────────────
 function renderOverviewTab(d) {
