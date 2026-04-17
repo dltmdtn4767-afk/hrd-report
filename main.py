@@ -423,7 +423,7 @@ async def export_element(payload: dict):
             ct = XL_CHART_TYPE.LINE
 
         chart_frame = slide.shapes.add_chart(
-            ct, Inches(0.5), Inches(0.5), Inches(9.5), Inches(6.0), cd
+            ct, Inches(1.0), Inches(1.5), Inches(8.0), Inches(4.5), cd
         )
         chart = chart_frame.chart
         chart.has_legend = False
@@ -477,7 +477,7 @@ async def export_element(payload: dict):
 
         tbl_shape = slide.shapes.add_table(
             n_rows, n_cols,
-            Inches(0.5), Inches(0.5), Inches(9.5), Inches(6.0)
+            Inches(1.0), Inches(1.0), Inches(8.0), Emu(int(Inches(0.35).emu * n_rows))
         )
         tbl = tbl_shape.table
 

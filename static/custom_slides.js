@@ -33,8 +33,12 @@ function renderCSTabs() {
   if (!cont) return;
   let html = '';
   customSlides.forEach((s, i) => {
-    html += `<button class="cst-tab ${i === activeCSIdx ? 'active' : ''}"
-              onclick="selectCSTab(${i})">${s.title || '슬라이드 ' + (i + 1)}</button>`;
+    const isActive = i === activeCSIdx ? 'active' : '';
+    html += `<span style="display:inline-flex;align-items:center;gap:2px">
+      <button class="cst-tab ${isActive}" onclick="selectCSTab(${i})">${s.title || '슬라이드 ' + (i + 1)}</button>
+      <button class="ppt-export-btn" style="padding:4px 6px;font-size:10px" onclick="copyCSChartToClipboard(${i})" title="차트 이미지 복사">📊</button>
+      <button class="ppt-export-btn" style="padding:4px 6px;font-size:10px" onclick="copyCSTableToClipboard(${i})" title="표 복사">📋</button>
+    </span>`;
   });
   html += `<button class="cst-tab add" onclick="addCustomSlide()">＋</button>`;
   cont.innerHTML = html;
@@ -484,64 +488,80 @@ function syncBuilderFromCustomSlides() {
   if (typeof refreshBuilderPreview === 'function') refreshBuilderPreview();
 }
 
-// ── 클립보드 이미지 복사 (커스텀 슬라이드) ──
+// ── PPTX 다운로드 (커스텀 슬라이드 — 편집 가능한 네이티브 차트/표) ──
 async function copyCSChartToClipboard(idx) {
   const s = customSlides[idx];
   if (!s) return;
-  const canvas = document.getElementById(`csChart_${s.id}`);
-  if (!canvas) return alert('차트가 없습니다');
+  const qs = getAllQuestions();
+  const data = {
+    labels: s.groups.map(g => g.name),
+    values: s.groups.map(g => calcGroupAvg(g.qIds, qs)),
+    chartType: s.chartType === 'horizontalBar' ? 'horizontalBar' : s.chartType === 'line' ? 'line' : 'bar',
+    colors: s.groups.map(g => g.color || '#36A86F')
+  };
   try {
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
-    _showCopyToast('차트가 클립보드에 복사됨! PPT에서 Ctrl+V');
-  } catch(e) {
-    // fallback: 새 탭에 이미지 열기
-    const url = canvas.toDataURL('image/png');
-    window.open(url, '_blank');
-    alert('클립보드 복사 실패. 새 탭의 이미지를 우클릭 → 복사하세요.');
-  }
+    const r = await fetch('/api/export_element', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({type:'chart', title: s.title + ' 차트', data})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${s.title} 차트.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    _showCopyToast2(`📥 ${s.title} 차트.pptx → 열어서 Ctrl+C → PPT에 Ctrl+V`);
+  } catch(e) { alert('다운로드 실패: '+e.message); }
 }
 
 async function copyCSTableToClipboard(idx) {
   const s = customSlides[idx];
   if (!s) return;
-  const previewInner = document.getElementById(`cspPreviewInner_${s.id}`);
-  if (!previewInner) return;
-  const table = previewInner.querySelector('table');
-  if (!table) return alert('표가 없습니다');
-  try {
-    // HTML 테이블을 클립보드에 복사 → PPT에서 표로 붙여넣기 가능
-    const html = table.outerHTML;
-    const blob = new Blob([html], {type: 'text/html'});
-    const textBlob = new Blob([table.innerText], {type: 'text/plain'});
-    await navigator.clipboard.write([new ClipboardItem({
-      'text/html': blob,
-      'text/plain': textBlob
-    })]);
-    _showCopyToast('표가 클립보드에 복사됨! PPT에서 Ctrl+V');
-  } catch(e) {
-    // fallback
-    const range = document.createRange();
-    range.selectNode(table);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(range);
-    document.execCommand('copy');
-    window.getSelection().removeAllRanges();
-    _showCopyToast('표가 복사됨! PPT에서 Ctrl+V');
+  const qs = getAllQuestions();
+  let headers = [], rows = [];
+
+  if (s.tableStyle === 'A') {
+    headers = [...s.groups.map(g => g.name), '과정 전반'];
+    const vals = s.groups.map(g => calcGroupAvg(g.qIds, qs).toFixed(2));
+    const overall = calcGroupAvg(qs.map(q => q.id), qs).toFixed(2);
+    rows = [[...vals, overall]];
+  } else if (s.tableStyle === 'B') {
+    headers = ['항목', '문항', '평균', '응답'];
+    s.groups.forEach(g => {
+      rows.push([g.name, '', calcGroupAvg(g.qIds, qs).toFixed(2), '']);
+      qs.filter(q => g.qIds.includes(q.id)).forEach(q => {
+        rows.push(['', q.label||'', (q.avg||0).toFixed(2), q.count||'']);
+      });
+    });
+  } else {
+    headers = ['항목', '결과'];
+    s.groups.forEach(g => {
+      rows.push([g.name, `${calcGroupAvg(g.qIds, qs).toFixed(2)}점`]);
+    });
   }
+
+  try {
+    const r = await fetch('/api/export_element', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({type:'table', title: s.title + ' 표', data:{headers, rows}})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${s.title} 표.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    _showCopyToast2(`📥 ${s.title} 표.pptx → 열어서 Ctrl+C → PPT에 Ctrl+V`);
+  } catch(e) { alert('다운로드 실패: '+e.message); }
 }
 
-function _showCopyToast(msg) {
-  let t = document.getElementById('_copyToast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = '_copyToast';
-    t.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#36A86F;color:#fff;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:700;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;';
-    document.body.appendChild(t);
-  }
-  t.textContent = msg;
-  t.style.opacity = '1';
-  setTimeout(() => { t.style.opacity = '0'; }, 2500);
+function _showCopyToast2(msg) {
+  if (typeof _showCopyToast === 'function') return _showCopyToast(msg);
+  alert(msg);
 }
 
 // ── window에 노출 ──

@@ -90,9 +90,9 @@
 
     <!-- 종합 현황 -->
     <div class="section-card collapsible" id="quantSummaryCard">
-      <div class="section-header" onclick="toggleSection(this)">
-        <h3 id="quantSummaryTitle"><span class="collapse-arrow">▼</span> 정량 평가 종합</h3>
-        <button class="copy-btn" data-target="quantSummaryTable" onclick="event.stopPropagation()">복사</button>
+      <div class="section-header">
+        <h3 id="quantSummaryTitle" onclick="toggleSection(this)" style="cursor:pointer"><span class="collapse-arrow">▼</span> 정량 평가 종합</h3>
+        <button class="copy-btn" data-target="quantSummaryTable">복사</button>
       </div>
       <div class="chart-table-wrap">
         <div class="chart-wrap">
@@ -115,8 +115,8 @@
 
     <!-- 문항별 상세 -->
     <div class="section-card collapsible" id="quantDetailCard">
-      <div class="section-header" onclick="toggleSection(this)">
-        <h3><span class="collapse-arrow">▼</span> 문항별 상세 결과</h3>
+      <div class="section-header">
+        <h3 onclick="toggleSection(this)" style="cursor:pointer"><span class="collapse-arrow">▼</span> 문항별 상세 결과</h3>
         <div class="detail-toolbar">
           <button class="sel-btn" id="selectModeBtn" onclick="toggleSelectMode()">☑ 선택 모드</button>
           <button class="add-to-builder-btn" id="addToBuilderBtn" onclick="addSelectedToBuilder()" style="display:none">📊 빌더에 추가</button>
@@ -149,9 +149,9 @@
 
     <!-- 차수별 비교 (멀티세션) -->
     <div class="section-card collapsible" id="sessionCompareCard" style="display:none">
-      <div class="section-header" onclick="toggleSection(this)">
-        <h3><span class="collapse-arrow">▼</span> 차수별 비교</h3>
-        <button class="copy-btn" data-target="sessionCompareTable" onclick="event.stopPropagation()">복사</button>
+      <div class="section-header">
+        <h3 onclick="toggleSection(this)" style="cursor:pointer"><span class="collapse-arrow">▼</span> 차수별 비교</h3>
+        <button class="copy-btn" data-target="sessionCompareTable">복사</button>
       </div>
       <div class="chart-wrap">
         <canvas id="sessionChart"></canvas>
@@ -174,9 +174,9 @@
 
     <!-- 커스텀 슬라이드 섬네일 영역 -->
     <div class="section-card collapsible" id="customSlidesSection">
-      <div class="section-header" onclick="toggleSection(this)">
-        <h3><span class="collapse-arrow">▼</span> 📊 커스텀 슬라이드 구성</h3>
-        <button class="add-custom-slide-btn" onclick="event.stopPropagation();addCustomSlide()">＋ 슬라이드 추가</button>
+      <div class="section-header">
+        <h3 onclick="toggleSection(this)" style="cursor:pointer"><span class="collapse-arrow">▼</span> 📊 커스텀 슬라이드 구성</h3>
+        <button class="add-custom-slide-btn" onclick="addCustomSlide()">＋ 슬라이드 추가</button>
       </div>
       <!-- 커스텀 탭 네비게이션 -->
       <div class="custom-slide-tabs" id="customSlideTabs"></div>

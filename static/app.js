@@ -993,42 +993,57 @@ function _addExportButtons(cats, qs, resp) {
   }
 }
 
-
 async function copyChartToClipboard(canvasId) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return alert('차트를 찾을 수 없습니다');
-  try {
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
-    _showCopyToast('✅ 차트 이미지가 복사됨! PPT에서 Ctrl+V 하세요');
-  } catch(e) {
-    const url = canvas.toDataURL('image/png');
-    window.open(url, '_blank');
-    alert('클립보드 복사 실패. 새 탭의 이미지를 우클릭 → 복사하세요.');
+  // canvasId → 데이터 추출 → PPTX 다운로드
+  const ad = window.analysisData;
+  if (!ad) return alert('데이터 없음');
+  const combined = ad.combined || {};
+  const cats = combined.categories || [];
+  const qs = combined.questions || [];
+
+  let data;
+  if (canvasId === 'summaryChart') {
+    data = { labels: cats.map(c=>c.name), values: cats.map(c=>c.avg), chartType:'bar',
+             colors: cats.map(c=>c.avg>=4.5?'#36A86F':c.avg<3.5?'#E74C3C':'#4A90D9') };
+  } else {
+    data = { labels: qs.map(q=>(q.label||'').substring(0,20)), values: qs.map(q=>q.avg), chartType:'bar',
+             colors: qs.map(q=>q.avg>=4.5?'#36A86F':q.avg<3.5?'#E74C3C':'#4A90D9') };
   }
+  await _downloadElement('chart', canvasId === 'summaryChart' ? '영역별 차트' : '문항별 차트', data);
 }
 
 async function copyTableToClipboard(tableId) {
-  const table = document.getElementById(tableId);
-  if (!table) return alert('표를 찾을 수 없습니다');
-  try {
-    const html = table.outerHTML;
-    const blob = new Blob([html], {type: 'text/html'});
-    const textBlob = new Blob([table.innerText], {type: 'text/plain'});
-    await navigator.clipboard.write([new ClipboardItem({
-      'text/html': blob,
-      'text/plain': textBlob
-    })]);
-    _showCopyToast('✅ 표가 복사됨! PPT에서 Ctrl+V 하세요');
-  } catch(e) {
-    const range = document.createRange();
-    range.selectNode(table);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(range);
-    document.execCommand('copy');
-    window.getSelection().removeAllRanges();
-    _showCopyToast('✅ 표가 복사됨! PPT에서 Ctrl+V 하세요');
+  const ad = window.analysisData;
+  if (!ad) return alert('데이터 없음');
+  const combined = ad.combined || {};
+  const cats = combined.categories || [];
+  const qs = combined.questions || [];
+
+  let data;
+  if (tableId === 'quantSummaryTable') {
+    data = { headers:['영역','평균','등급'], rows: cats.map(c=>[c.name,c.avg.toFixed(2),c.avg>=4.5?'우수':c.avg>=3.5?'보통':'미흡']) };
+  } else {
+    data = { headers:['번호','문항','평균','응답'], rows: qs.map(q=>[q.id||'',q.label||'',(q.avg||0).toFixed(2),q.count||'']) };
   }
+  await _downloadElement('table', tableId === 'quantSummaryTable' ? '영역별 표' : '문항별 표', data);
+}
+
+async function _downloadElement(type, title, data) {
+  try {
+    const r = await fetch('/api/export_element', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({type, title, data})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    _showCopyToast(`📥 ${title}.pptx 다운 완료 → 열어서 Ctrl+C → PPT에 Ctrl+V`);
+  } catch(e) { alert('다운로드 실패: '+e.message); }
 }
 
 function _showCopyToast(msg) {
@@ -1041,6 +1056,6 @@ function _showCopyToast(msg) {
   }
   t.textContent = msg;
   t.style.opacity = '1';
-  setTimeout(() => { t.style.opacity = '0'; }, 2500);
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
 }
 
