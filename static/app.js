@@ -962,35 +962,34 @@ async function generatePPT() {
 // PPT 개별 내보내기 (차트/표 → 복사용 PPTX)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function _addExportButtons(cats, qs, resp) {
-  // 영역별 요약 차트 아래 버튼
-  const summaryChartEl = document.getElementById('summaryChart');
-  if (summaryChartEl) {
-    let wrap = summaryChartEl.parentElement;
-    let existing = wrap.querySelector('.ppt-export-row');
+  // 영역별 요약: section-card (#quantSummaryCard) 맨 아래에 삽입
+  const summaryCard = document.getElementById('quantSummaryCard');
+  if (summaryCard) {
+    let existing = summaryCard.querySelector('.ppt-export-row');
     if (existing) existing.remove();
     let div = document.createElement('div');
     div.className = 'ppt-export-row';
-    div.style.cssText = 'display:flex;gap:8px;margin-top:8px;justify-content:flex-end';
+    div.style.cssText = 'display:flex;gap:8px;padding:8px 16px 12px;justify-content:flex-end;border-top:1px solid #eee;margin-top:8px';
     div.innerHTML = `
       <button class="ppt-export-btn" onclick="exportChartToPPT('summary','영역별 종합')">📊 차트 PPT 복사</button>
       <button class="ppt-export-btn" onclick="exportTableToPPT('summary','영역별 요약 표')">📋 표 PPT 복사</button>
     `;
-    wrap.appendChild(div);
+    summaryCard.appendChild(div);
   }
-  // 문항별 상세 차트 아래 버튼
-  const detailChartEl = document.getElementById('detailChart');
-  if (detailChartEl) {
-    let wrap = detailChartEl.parentElement;
-    let existing = wrap.querySelector('.ppt-export-row');
+  // 문항별 상세: chart-wrap 바로 뒤에 별도 div 삽입 (table 위)
+  const detailChartWrap = document.getElementById('detailChart')?.closest('.chart-wrap');
+  if (detailChartWrap) {
+    let existing = detailChartWrap.parentElement.querySelector('.ppt-export-row');
     if (existing) existing.remove();
     let div = document.createElement('div');
     div.className = 'ppt-export-row';
-    div.style.cssText = 'display:flex;gap:8px;margin-top:8px;justify-content:flex-end';
+    div.style.cssText = 'display:flex;gap:8px;padding:8px 0 4px;justify-content:flex-end';
     div.innerHTML = `
       <button class="ppt-export-btn" onclick="exportChartToPPT('detail','문항별 상세')">📊 차트 PPT 복사</button>
       <button class="ppt-export-btn" onclick="exportTableToPPT('detail','문항별 상세 표')">📋 표 PPT 복사</button>
     `;
-    wrap.appendChild(div);
+    // chart-wrap 바로 뒤에 삽입 (table 앞)
+    detailChartWrap.parentElement.insertBefore(div, detailChartWrap.nextSibling);
   }
 }
 

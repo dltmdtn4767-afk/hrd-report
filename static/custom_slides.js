@@ -191,10 +191,10 @@ function renderCSPanel() {
   // ── PPT 내보내기 버튼 ──
   html += `<div class="ppt-export-row" style="margin-top:12px">`;
   if (s.chartType !== 'none') {
-    html += `<button class="ppt-export-btn" onclick="exportCSChartToPPT(${activeCSIdx})">\ud83d\udcca \ucc28\ud2b8 PPT \ubcf5\uc0ac</button>`;
+    html += `<button class="ppt-export-btn" onclick="exportCSChartToPPT(${activeCSIdx})">📊 차트 PPT 복사</button>`;
   }
   if (s.tableStyle !== 'none') {
-    html += `<button class="ppt-export-btn" onclick="exportCSTableToPPT(${activeCSIdx})">\ud83d\udccb \ud45c PPT \ubcf5\uc0ac</button>`;
+    html += `<button class="ppt-export-btn" onclick="exportCSTableToPPT(${activeCSIdx})">📋 표 PPT 복사</button>`;
   }
   html += `</div>`;
 
