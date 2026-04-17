@@ -160,8 +160,9 @@ def _fill_schedule(slide, data: dict):
 
 
 def _fill_summary(slide, data: dict):
-    """Executive Summary — 차트 업데이트 + 표"""
+    """Executive Summary — 차트 + 스타일A 표 (가로 영역별)"""
     cats = data.get('categories', [])
+    overall = data.get('overall', 0)
 
     # 차트 업데이트
     for sh in slide.shapes:
@@ -175,17 +176,24 @@ def _fill_summary(slide, data: dict):
         except Exception:
             pass
 
-    # 표 (전체 평균 / 응답 인원)
+    # 표 — 스타일A: 카테고리별 열 + 과정 전반 하이라이트
     tbl_shape = _find_shape(slide, '표')
     if tbl_shape and tbl_shape.has_table:
         tbl = tbl_shape.table
+        n_cols = len(tbl.columns)
         try:
-            overall = data.get('overall', 0)
-            resp    = data.get('response_count', 0)
-            total_q = sum(len(c.get('questions', [])) for c in cats)
-            _set_table_cell(tbl, 1, 1, f"{overall:.2f}점")
-            _set_table_cell(tbl, 1, 2, f"{resp}명")
-            _set_table_cell(tbl, 1, 3, f"{total_q}개")
+            for ci, cat in enumerate(cats):
+                if ci < n_cols:
+                    _set_table_cell(tbl, 0, ci, cat.get('name', ''), bold=True)
+                    _set_table_cell(tbl, 1, ci, f"{cat.get('avg', 0):.2f}")
+            # 마지막 열 = 과정 전반 (하이라이트)
+            last_col = min(len(cats), n_cols - 1)
+            if last_col < n_cols:
+                _set_table_cell(tbl, 0, last_col, '과정 전반', bold=True, bg='F0BEF8')
+                _set_table_cell(tbl, 1, last_col, f"{overall:.2f}")
+            # 평균 행
+            if tbl.rows.__len__() > 2:
+                _set_table_cell(tbl, 2, 0, f"{overall:.2f}", bold=True, bg='E7E6E6')
         except Exception:
             pass
 
@@ -253,6 +261,65 @@ def _fill_qual(slide, qual_data: list):
             break
 
 
+def _fill_custom_quant(slide, custom_data: dict):
+    """커스텀 그룹 슬라이드 — 그룹별 평균 차트 + 표"""
+    groups = custom_data.get('groups', [])
+    title = custom_data.get('title', '커스텀 분석')
+    table_style = custom_data.get('tableStyle', 'B')
+
+    # 슬라이드 제목
+    title_sh = _find_shape(slide, '제목') or _find_shape(slide, 'TextBox')
+    if title_sh:
+        _set_text(title_sh, title, bold=True)
+
+    # 차트 업데이트 (있으면)
+    for sh in slide.shapes:
+        try:
+            chart = sh.chart
+            cd = ChartData()
+            cd.categories = [g.get('name', '') for g in groups]
+            cd.add_series('평균', [round(g.get('avg', 0), 2) for g in groups])
+            chart.replace_data(cd)
+            break
+        except Exception:
+            pass
+
+    # 표 채우기
+    tbl_shape = _find_shape(slide, '표')
+    if not tbl_shape or not tbl_shape.has_table:
+        return
+    tbl = tbl_shape.table
+
+    if table_style == 'A':
+        n_cols = len(tbl.columns)
+        for ci, g in enumerate(groups):
+            if ci < n_cols:
+                _set_table_cell(tbl, 0, ci, g.get('name', ''), bold=True)
+                _set_table_cell(tbl, 1, ci, f"{g.get('avg', 0):.2f}")
+        overall = sum(g.get('avg', 0) for g in groups) / max(len(groups), 1)
+        last = min(len(groups), n_cols - 1)
+        if last < n_cols:
+            _set_table_cell(tbl, 0, last, '과정 전반', bold=True, bg='F0BEF8')
+            _set_table_cell(tbl, 1, last, f"{overall:.2f}")
+    else:
+        _set_table_cell(tbl, 0, 0, '항목', bold=True, bg='D9D9D9')
+        _set_table_cell(tbl, 0, 1, '문항', bold=True, bg='D9D9D9')
+        _set_table_cell(tbl, 0, 2, '평균', bold=True, bg='D9D9D9')
+        _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='D9D9D9')
+        row_idx = 1
+        for g in groups:
+            if row_idx < tbl.rows.__len__():
+                _set_table_cell(tbl, row_idx, 0, g.get('name', ''), bold=True, bg='E7E6E6')
+                _set_table_cell(tbl, row_idx, 2, f"{g.get('avg', 0):.2f}")
+                row_idx += 1
+            for q in g.get('questions', []):
+                if row_idx < tbl.rows.__len__():
+                    _set_table_cell(tbl, row_idx, 1, q.get('label', ''))
+                    _set_table_cell(tbl, row_idx, 2, f"{q.get('avg', 0):.2f}")
+                    _set_table_cell(tbl, row_idx, 3, str(q.get('count', '')))
+                    row_idx += 1
+
+
 # ────────────────────────────────────────────
 # 메인 빌드 함수
 # ────────────────────────────────────────────
@@ -289,25 +356,29 @@ def build_custom_ppt(slides: list, quant_groups: list, qual_data: list,
     _fill_qual(prs.slides[TPL_QUAL], qual_data)
 
     # ── 2. 정량 그룹 슬라이드 (슬라이드 10 복제) ──
-    # 슬라이드 10 (TPL_QUANT) 을 각 그룹마다 복제 삽입
-    # 기존 슬라이드 10은 첫 그룹으로 사용, 나머지는 새로 삽입
-
     if quant_groups:
-        # 첫 그룹 → 기존 슬라이드 10 채우기
         _fill_quant_chart(prs.slides[TPL_QUANT], quant_groups[0])
-
-        # 추가 그룹 → 슬라이드 복제 후 TPL_QUAL 앞에 삽입
         for g in quant_groups[1:]:
             new_slide = _clone_slide(prs, TPL_QUANT)
             _fill_quant_chart(new_slide, g)
-            # 슬라이드를 TPL_QUAL 위치로 이동
             xml_slides = prs.slides._sldIdLst
-            # 마지막에 추가된 슬라이드를 정성 슬라이드 앞으로 이동
-            # (현재 마지막 = 방금 추가한 슬라이드)
             last = xml_slides[-1]
-            qual_xml_idx = len(prs.slides) - 2  # 정성은 뒤에서 2번째
+            qual_xml_idx = len(prs.slides) - 2
             xml_slides.remove(last)
             xml_slides.insert(qual_xml_idx, last)
+
+    # ── 2b. 커스텀 그룹 슬라이드 ──
+    custom_quant_slides = [s for s in slides if s.get('type') == 'custom_quant']
+    for cs in custom_quant_slides:
+        cs_data = cs.get('data', {})
+        new_slide = _clone_slide(prs, TPL_QUANT)
+        _fill_custom_quant(new_slide, cs_data)
+        # 정성 슬라이드 앞에 삽입
+        xml_slides = prs.slides._sldIdLst
+        last = xml_slides[-1]
+        qual_xml_idx = len(prs.slides) - 2
+        xml_slides.remove(last)
+        xml_slides.insert(qual_xml_idx, last)
 
     # ── 3. 파일명 & 저장 ─────────────────────────
     company  = cover_data.get('company', '')
