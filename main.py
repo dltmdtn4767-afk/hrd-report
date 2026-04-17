@@ -369,10 +369,13 @@ async def build_ppt(session_id: str, payload: dict):
         output_path = build_custom_ppt(slides, q_groups, qual_data, data, config,
                                        template_path=tpl_path)
         filename = os.path.basename(output_path)
+        # 한글 파일명 → RFC 5987 인코딩
+        from urllib.parse import quote
+        safe_fn = quote(filename)
         return FileResponse(
             output_path,
             media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_fn}"},
         )
     except Exception as e:
         import traceback; traceback.print_exc()

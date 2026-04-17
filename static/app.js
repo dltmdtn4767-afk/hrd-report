@@ -72,6 +72,7 @@ async function uploadFile(file) {
 
     showProgress('정성 문항 분석 중...', 70);
     sessionId = d.session_id;
+    window.sessionId = sessionId;
 
     // 정성 데이터 그룹핑 요청
     const gr = await fetch(`/api/analyze_qual/${sessionId}`);
