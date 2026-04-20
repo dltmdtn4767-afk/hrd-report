@@ -621,7 +621,7 @@ async def export_slide(payload: dict):
             ct = XL_CHART_TYPE.BAR_CLUSTERED
         elif chart_type_str == "line":
             ct = XL_CHART_TYPE.LINE
-        chart_frame = slide.shapes.add_chart(ct, Inches(0.5), chart_top, Inches(12.3), chart_h, cd)
+        chart_frame = slide.shapes.add_chart(ct, Inches(0.5), chart_top, CHART_SIZE["width"], CHART_SIZE["height"], cd)
         chart_obj = chart_frame.chart
         chart_obj.has_legend = False
         chart_obj.font.name = FONT_NAME
@@ -657,7 +657,7 @@ async def export_slide(payload: dict):
         n_cols = len(headers)
         n_rows = 1 + len(rows_data)
         row_h = Inches(0.32)
-        tbl_shape = slide.shapes.add_table(n_rows, n_cols, Inches(0.5), table_top, Inches(12.3), Emu(int(row_h.emu * n_rows)))
+        tbl_shape = slide.shapes.add_table(n_rows, n_cols, Inches(0.5), table_top, TABLE_SIZE["width"], TABLE_SIZE["height"])
         tbl = tbl_shape.table
         for ci, h in enumerate(headers):
             cell = tbl.cell(0, ci)

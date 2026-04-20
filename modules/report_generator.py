@@ -17,6 +17,8 @@ from modules.config_manager import resolve_path
 from modules.ppt_constants import (
     FONT_NAME, BRAND_COLORS, CHART_CONFIG
 )
+from pptx.enum.text import MSO_ANCHOR
+from pptx import Presentation
 
 
 def find_template(config):
@@ -112,9 +114,12 @@ def generate_report(data, config, sample_pattern=None, template_path=None,
     else:
         _update_quantitatives(prs, quant_indices, data, sample_design)
     
-    # ═══ (7) 정성 평가 + 공통응답 그룹핑 ═══
+    # ═══ (7) 정성 평가 + 공통응답 그룹핑 — 차수별 분리 ═══
     qual_indices = [i for i, r in slide_roles.items() if r == "qual"]
-    _update_qualitatives_grouped(prs, qual_indices, data, sample_design)
+    if multi_result and multi_result.get("multi_session") and len(sessions) > 1:
+        _update_qualitatives_grouped_multi(prs, qual_indices, data, sessions, sample_design)
+    else:
+        _update_qualitatives_grouped(prs, qual_indices, data, sample_design)
     
     # ═══ (8) 빈 텍스트 채우기 (모든 슬라이드) ═══
     _fill_empty_placeholders(prs, company_name, course_name)
@@ -469,6 +474,39 @@ def _update_quantitatives(prs, slide_indices, data, sample_design):
         for shape in slide.shapes:
             if shape.has_table and len(shape.table.rows) > 3:
                 _fill_quant_table(shape.table, qs, resp)
+                apply_table_style(shape.table)
+                merge_table_headers(shape.table)
+
+
+def merge_table_headers(table):
+    """1열(인덱스 0)의 동일한 텍스트를 가진 셀을 찾아 자동 병합"""
+    if len(table.rows) <= 1:
+        return
+        
+    start_row = 1 # 0행은 타이틀 헤더이므로 제외
+    current_text = table.cell(start_row, 0).text
+
+    for i in range(2, len(table.rows)):
+        cell_text = table.cell(i, 0).text
+        if cell_text != current_text:
+            if i - 1 > start_row:
+                table.cell(start_row, 0).merge(table.cell(i - 1, 0))
+            start_row = i
+            current_text = cell_text
+            
+    # 마지막 그룹 병합 처리 (끝까지 같은 내용일 경우)
+    if len(table.rows) - 1 > start_row:
+        table.cell(start_row, 0).merge(table.cell(len(table.rows) - 1, 0))
+
+
+def apply_table_style(table):
+    """테이블 전체 '나눔바른고딕 Light' 폰트 및 세로 중앙 정렬"""
+    for row in table.rows:
+        for cell in row.cells:
+            cell.vertical_anchor = MSO_ANCHOR.MIDDLE # 세로 중앙 정렬
+            for paragraph in cell.text_frame.paragraphs:
+                for run in paragraph.runs:
+                    run.font.name = FONT_NAME
 
 
 def _fill_quant_table(table, questions, resp_count):
@@ -802,6 +840,8 @@ def _update_quantitatives_multi(prs, slide_indices, combined_data, sessions, sam
                 _replace_text_preserve_format(shape.text_frame, "정량 평가 결과 (종합)")
         if shape.has_table and len(shape.table.rows) > 3:
             _fill_quant_table(shape.table, combined_data["questions"], resp)
+            apply_table_style(shape.table)
+            merge_table_headers(shape.table)
 
     # 차수별 슬라이드 (슬라이드 복제)
     if len(slide_indices) >= 2:
@@ -826,6 +866,8 @@ def _update_quantitatives_multi(prs, slide_indices, combined_data, sessions, sam
                         _replace_text_preserve_format(shape.text_frame, f"정량 평가 결과 ({label})")
                 if shape.has_table and len(shape.table.rows) > 3:
                     _fill_quant_table(shape.table, session.get("questions", []), s_resp)
+                    apply_table_style(shape.table)
+                    merge_table_headers(shape.table)
     else:
         # 슬라이드 1개뿐 — 종합만
         _update_quantitatives(prs, slide_indices, combined_data, sample_design)
@@ -885,6 +927,48 @@ def _update_qualitatives_grouped(prs, slide_indices, data, sample_design):
                 _fill_group_data_text(groups_shapes[oe_idx], question_text, answer_text)
             elif groups_shapes:
                 _fill_group_data_text(groups_shapes[-1], question_text, answer_text)
+
+
+def _update_qualitatives_grouped_multi(prs, slide_indices, combined_data, sessions, sample_design):
+    """정성 평가 결과를 차수별로 나누어 여러 슬라이드에 삽입"""
+    if not slide_indices: return
+    
+    # 1. 첫 번째 슬라이드 -> 종합 정성 평가
+    _update_qualitatives_grouped(prs, [slide_indices[0]], combined_data, sample_design)
+    
+    # 2. 종합 슬라이드 타이틀 수정
+    combined_slide = prs.slides[slide_indices[0]]
+    for shape in combined_slide.shapes:
+        if shape.has_text_frame:
+            t = shape.text_frame.text
+            if "정성" in t or "의견" in t or "Q" in t:
+                if len(t) < 30:
+                     _replace_text_preserve_format(shape.text_frame, "정성 평가 결과 (종합)")
+
+    # 3. 차수별 슬라이드 (슬라이드 복제)
+    if len(slide_indices) >= 2:
+        ref_idx = slide_indices[1]
+        for si, session in enumerate(sessions):
+            if si < len(slide_indices) - 1:
+                target_slide = prs.slides[slide_indices[si + 1]]
+            else:
+                target_slide = prs.slides[slide_indices[-1]]
+            
+            label = session.get("session_label", f"{si+1}차수")
+            
+            # 타이틀 수정
+            for shape in target_slide.shapes:
+                if shape.has_text_frame:
+                    t = shape.text_frame.text
+                    if "정성" in t or "의견" in t or "Q" in t:
+                         if len(t) < 30:
+                            _replace_text_preserve_format(shape.text_frame, f"정성 평가 결과 ({label})")
+            
+            # 데이터 채우기 (세션별 그룹핑 데이터 사용)
+            _update_qualitatives_grouped(prs, [prs.slides.index(target_slide)], session, sample_design)
+    else:
+        # 슬라이드 부족 시 종합만 유지 (이미 1단계에서 수행됨)
+        pass
 
 
 def _fill_group_data_text(group_shape, question_text, answer_text):

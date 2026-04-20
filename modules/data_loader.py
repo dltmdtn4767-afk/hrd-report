@@ -65,8 +65,14 @@ OPEN_ENDED_KEYWORDS = [
     '목표를', '계획', '활용할', '적용할', '실천할', '노력', '이유를',
 ]
 
-# 데이터 기반 재분류 임계값: None비율 50%+ AND 텍스트 있으면 주관식
+# 데이터 기반 재분류 임계값: None비율 50% 이상 시 정성 검토
 OPEN_ENDED_NULL_THRESHOLD = 0.5
+
+# 분석에서 제외할 레이블 블랙리스트 (데이터가 아닌 단순 타이틀/키워드)
+LABEL_BLACKLIST = {
+    "모듈", "교육 운영", "과정 전반", "평균", "합계", "기타", "교육 성과", 
+    "교육 내용", "강사", "문항", "번호", "응답", "비중", "점수", "강사명"
+}
 
 
 
@@ -92,24 +98,28 @@ def parse_header(header_text):
         
         return {"id": f"Q{q_num}", "category": category, "label": label, "is_open_ended": is_open_ended}
     
-    # 패턴 2: "5-1. 교육 후 내가 조직문화의..." (카테고리 없음)
-    m = re.match(r'^(\d+-\d+)[.\s]+(.+)$', header)
+    # 패턴 2: "5-1. 교육 후 내가 조직문화의..." 또는 "Q1-2. 문항내용"
+    m = re.match(r'^([Qq]?\d+[-.]\d+)[.\s]+(.+)$', header)
     if m:
-        q_num = m.group(1)
+        id_str = m.group(1).upper()
+        if not id_str.startswith('Q'): id_str = 'Q' + id_str
+        id_str = id_str.replace('.', '-')
+        
         label = m.group(2).strip()
-        major = q_num.split('-')[0]
+        major = id_str.split('-')[0].replace('Q', '')
         category = f"분류{major}"
-        return {"id": f"Q{q_num}", "category": category, "label": label, "is_open_ended": is_open_ended}
+        return {"id": id_str, "category": category, "label": label, "is_open_ended": is_open_ended}
     
-    # 패턴 3: "6. 이번 교육에 전반적으로 만족한다." (단일 번호)
-    m = re.match(r'^(\d+)[.\s]+(.+)$', header)
+    # 패턴 3: "6. 만족한다" 또는 "Q6. 만족한다" (단일 번호)
+    m = re.match(r'^([Qq]?\d+)[.\s]+(.+)$', header)
     if m:
-        q_num = m.group(1)
+        id_str = m.group(1).upper()
+        if not id_str.startswith('Q'): id_str = 'Q' + id_str
         label = m.group(2).strip()
         if is_open_ended:
-            return {"id": f"Q{q_num}", "category": "주관식", "label": label, "is_open_ended": True}
+            return {"id": id_str, "category": "주관식", "label": label, "is_open_ended": True}
         else:
-            return {"id": f"Q{q_num}", "category": "기타", "label": label, "is_open_ended": False}
+            return {"id": id_str, "category": "기타", "label": label, "is_open_ended": False}
     
     # 패턴 4: 번호 없는 텍스트 (길이 5자 이상이면 문항으로 간주)
     if len(header) >= 5 and not header.startswith('타임') and not header.startswith('응답'):
@@ -136,8 +146,9 @@ def _detect_orientation(ws):
     col1_strs = [str(v).strip() if v else "" for v in col1_vals]
     
     # 1행이 문항 헤더면 → 일반
-    header_pattern_count = sum(1 for s in row1_strs if re.match(r'^\d+[-.]', s))
-    if header_pattern_count >= 3:
+    header_pattern_count = sum(1 for s in row1_strs if re.match(r'^([Qq]?\d+[-.])', s))
+    if header_pattern_count >= 2: # 2개 이상만 있어도 데이터 시트로 간주
+        return "normal"
         return "normal"
     
     # 1열이 문항처럼 보이면 → 일반 (문항이 세로)
@@ -172,6 +183,19 @@ def _detect_orientation(ws):
     
     return "normal"
 
+
+def _is_summary_row(row_values):
+    """이 행이 결과 요약(평균, 합계 등) 행인지 판별"""
+    summary_keywords = ['평균', '합계', '전체', '계', 'total', 'average', 'avg', 'sum', '결과']
+    text_vals = [str(v).strip().lower() for v in row_values if v is not None]
+    
+    # 1. 키워드가 포함된 경우
+    if any(any(kw in val for kw in summary_keywords) for val in text_vals):
+        return True
+    
+    # 2. 정량 데이터열인데 소수점 값이 너무 많은 경우 (일반 응답은 1~5 정수)
+    # (여기서는 개별 셀 수준이 아닌 행 전체의 특성으로 판단)
+    return False
 
 def _find_header_row(ws):
     """헤더가 있는 행 번호 찾기 (1~5행 검색)"""
@@ -222,10 +246,17 @@ def _load_normal(ws, course_info):
     # 헤더 파싱
     headers = {}
     auto_id = 1
+    empty_col_count = 0
     for col_idx in range(1, ws.max_column + 1):
         val = ws.cell(row=header_row, column=col_idx).value
+        
         if not val:
+            empty_col_count += 1
+            if empty_col_count >= 2: # 2행(줄) 이상의 빈 열이 나오면 중단
+                break
             continue
+            
+        empty_col_count = 0
         header_text = str(val).strip()
         
         # 건너뛸 열
@@ -256,12 +287,21 @@ def _load_normal(ws, course_info):
     
     row_idx = data_start
     empty_count = 0
-    while row_idx <= ws.max_row and empty_count < 3:
+    while row_idx <= ws.max_row and empty_count < 2: # 2줄 이상의 떨어진 데이터는 무시
+        # 이 행의 모든 값을 가져와 요약 행인지 확인
+        row_values = [ws.cell(row=row_idx, column=c).value for c in range(1, ws.max_column + 1)]
+        if _is_summary_row(row_values):
+            row_idx += 1
+            continue
+
         # 아무 문항 열에서든 데이터가 있는지 확인
         has_data = False
         for col_letter, q in headers.items():
             val = ws.cell(row=row_idx, column=q["col_idx"]).value
-            if val is not None and str(val).strip() != "":
+            if val is not None:
+                txt = str(val).strip()
+                if txt == "" or txt in LABEL_BLACKLIST:
+                    continue
                 has_data = True
                 break
         
@@ -270,24 +310,32 @@ def _load_normal(ws, course_info):
             row_idx += 1
             continue
         
-        empty_count = 0
         for col_letter, q in headers.items():
             val = ws.cell(row=row_idx, column=q["col_idx"]).value
+            txt_val = str(val).strip() if val is not None else ""
+            
+            # 블랙리스트 필터링
+            if txt_val in LABEL_BLACKLIST:
+                continue
+
             if q["is_open_ended"]:
-                if val and str(val).strip():
-                    q["answers"].append(str(val).strip())
+                if val and txt_val:
+                    q["answers"].append(txt_val)
             else:
                 try:
-                    q["scores"].append(float(val))
+                    num_val = float(val)
+                    if num_val != int(num_val) and not q.get("is_floating_allowed", False):
+                        pass
+                    q["scores"].append(num_val)
                 except (TypeError, ValueError):
                     q["scores"].append(None)
-                    raw = str(val).strip() if val is not None else ""
+                    raw = txt_val
                     if raw and raw not in ("-", "0", "n/a", "N/A", "none"):
                         q.setdefault("raw_texts", []).append(raw)
         
         row_idx += 1
     
-    response_count = row_idx - data_start - empty_count
+    response_count = sum(1 for q in headers.values() if q["scores"] or q["answers"]) # 실제 데이터가 있는 행 기준
     if response_count <= 0:
         raise ValueError("설문 응답 데이터가 없습니다.")
     
@@ -375,24 +423,36 @@ def _build_result(headers, response_count, course_info):
     instructor_names = set()
     
     for key, q in headers.items():
-        # ─── 데이터 기반 사후 재분류 ───
+        # ─── 데이터 기반 사후 재분류 (정밀 판별) ───
         if not q["is_open_ended"]:
             scores = q.get("scores", [])
             raw_texts = q.get("raw_texts", [])
+            valid_scores = [s for s in scores if s is not None]
+            
             total = len(scores)
+            score_count = len(valid_scores)
+            text_count = len(raw_texts)
             null_count = scores.count(None)
             null_ratio = null_count / total if total > 0 else 1.0
-            # 의미있는 텍스트만 카운트 (길이 4자 이상 = 진짜 주관식)
-            # "5", "4", "매우 좋음" 같은 짧은 값은 제외 → 3자 이하는 Likert 옵션
-            meaningful_texts = [t for t in raw_texts if len(t) > 3]
-            # None 비율 50% 이상 + 의미있는 텍스트 있으면 주관식으로 재분류
-            if null_ratio >= OPEN_ENDED_NULL_THRESHOLD and len(meaningful_texts) > 0:
-                q["is_open_ended"] = True
-                q["answers"] = meaningful_texts
-
+            
+            # 의미 있는 텍스트 추출 (블랙리스트 제외)
+            meaningful_texts = [t for t in raw_texts if len(str(t).strip()) >= 2 and t not in LABEL_BLACKLIST]
+            
+            # [수치 데이터 우선 판별 원칙]
+            # 1. 수치 데이터가 과반수(또는 텍스트보다 많음)인 경우 정량 유지
+            # 2. 텍스트가 발견되도 수치가 충분하면 정성으로 바꾸지 않음
+            is_numeric_dominant = score_count > 0 and (score_count >= text_count)
+            
+            if not is_numeric_dominant:
+                # 수치가 없거나 텍스트가 압도적일 때만 정성으로 전환
+                if len(meaningful_texts) > 0 or (null_ratio >= OPEN_ENDED_NULL_THRESHOLD and text_count > 0):
+                    q["is_open_ended"] = True
+                    q["answers"] = raw_texts
 
         if q["is_open_ended"]:
-            open_ended.append({"id": q["id"], "label": q["label"], "answers": q.get("answers", [])})
+            # 정성 응답에서도 블랙리스트 제거
+            clean_answers = [a for a in q.get("answers", []) if a not in LABEL_BLACKLIST]
+            open_ended.append({"id": q["id"], "label": q["label"], "answers": clean_answers})
         else:
             valid = [s for s in q.get("scores", []) if s is not None]
             avg = round(sum(valid) / len(valid), 2) if valid else 0
@@ -478,13 +538,13 @@ def _is_data_sheet(ws):
     # 최소 2행, 2열 이상
     if ws.max_row < 2 or ws.max_column < 2:
         return False
-    # 1행에 인식 가능한 헤더가 2개 이상
+    # 1행에 인식 가능한 헤더가 1개 이상 (최소 조건 완화)
     header_count = 0
     for col in range(1, min(30, ws.max_column + 1)):
         v = ws.cell(row=1, column=col).value
         if v and parse_header(str(v)):
             header_count += 1
-    return header_count >= 2
+    return header_count >= 1
 
 
 def load_all_sheets(excel_path):

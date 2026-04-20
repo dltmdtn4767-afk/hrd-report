@@ -140,6 +140,7 @@ function renderDashboard(d, gd) {
   renderOverviewTab(d);
   renderQuantTab(d);
   qualDataCache = gd;
+  renderQualSessionTabs(); // 차수 버튼 렌더링
   renderQualTab(mergeQualData(gd));
 
   // 보고서 빌더 초기화
@@ -744,6 +745,7 @@ function setupTabs() {
 function resetApp() {
   sessionId = null;
   analysisData = null;
+  currentQualSessionIdx = -1;
   movedToQual.clear();
   movedToQuant.clear();
   qualDataCache = null;
@@ -815,12 +817,54 @@ async function moveToQuant(qId, qLabel) {
   if (qualDataCache) renderQualTab(mergeQualData(qualDataCache));
 }
 
+function renderQualSessionTabs() {
+  const cont = document.getElementById('qualSessionTabs');
+  if (!cont || !qualDataCache || !qualDataCache.sessions_qual) return;
+  
+  const sessions = qualDataCache.sessions_qual;
+  let html = `<button class="session-tab-btn ${currentQualSessionIdx === -1 ? 'active' : ''}" onclick="switchQualSession(-1)">종합</button>`;
+  
+  sessions.forEach((s, idx) => {
+    html += `<button class="session-tab-btn ${currentQualSessionIdx === idx ? 'active' : ''}" onclick="switchQualSession(${idx})">${s.session_label}</button>`;
+  });
+  
+  cont.innerHTML = html;
+}
 
-function mergeQualData(gd) {
-  // 수동이동 항목 추가 + 정량이동 항목 숨김
-  const base = (gd.open_ended_grouped || []).filter(oe => !movedToQuant.has(oe.id));
-  const extras = [...movedToQual.values()].filter(m => m.is_manual);
-  return { ...gd, open_ended_grouped: [...base, ...extras] };
+function switchQualSession(idx) {
+  currentQualSessionIdx = idx;
+  renderQualSessionTabs();
+  renderQualTab(mergeQualData(qualDataCache));
+}
+
+function mergeQualData(cache) {
+  // 현재 선택된 세션 데이터 가져오기
+  let base;
+  if (currentQualSessionIdx === -1) {
+    base = { open_ended_grouped: [...(cache.open_ended_grouped || [])] };
+  } else {
+    const s = cache.sessions_qual[currentQualSessionIdx];
+    base = { open_ended_grouped: [...(s.open_ended_grouped || [])] };
+  }
+  
+  // 정량 -> 정성 이동 데이터 합치기 (id 중복 방지)
+  const existingIds = new Set(base.open_ended_grouped.map(oe => oe.id));
+  
+  const merged = {
+    ...base,
+    open_ended_grouped: [...base.open_ended_grouped]
+  };
+  
+  // 종합 데이터일 때만 이동 데이터를 보여주거나, 혹은 현재 세션에 해당하는 이동 데이터만 필터링 필요
+  // 일단 단순 합산 (기존 로직 유지)
+  for (const [id, label] of movedToQual) {
+    if (!existingIds.has(id)) {
+      merged.open_ended_grouped.push({
+        id, label, groups: [{ label: '이동된 문항 (수동)', answers: ['분석 정보 없음'], count: 1, is_common: false }]
+      });
+    }
+  }
+  return merged;
 }
 
 // ── 헬퍼 ─────────────────────────────────────

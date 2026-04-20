@@ -117,6 +117,37 @@ def _clone_slide(prs: Presentation, src_idx: int) -> object:
     return new_slide
 
 
+def merge_table_headers(table):
+    """1열(인덱스 0)의 동일한 텍스트를 가진 셀을 찾아 자동 병합"""
+    if len(table.rows) <= 1:
+        return
+        
+    start_row = 1 # 0행은 타이틀 헤더이므로 제외
+    current_text = table.cell(start_row, 0).text
+
+    for i in range(2, len(table.rows)):
+        cell_text = table.cell(i, 0).text
+        if cell_text != current_text:
+            if i - 1 > start_row:
+                table.cell(start_row, 0).merge(table.cell(i - 1, 0))
+            start_row = i
+            current_text = cell_text
+            
+    # 마지막 그룹 병합 처리 (끝까지 같은 내용일 경우)
+    if len(table.rows) - 1 > start_row:
+        table.cell(start_row, 0).merge(table.cell(len(table.rows) - 1, 0))
+
+
+def apply_table_style(table):
+    """테이블 전체 '나눔바른고딕 Light' 폰트 및 세로 중앙 정렬"""
+    for row in table.rows:
+        for cell in row.cells:
+            cell.vertical_anchor = MSO_ANCHOR.MIDDLE # 세로 중앙 정렬
+            for paragraph in cell.text_frame.paragraphs:
+                for run in paragraph.runs:
+                    run.font.name = FONT_NAME
+
+
 # ────────────────────────────────────────────
 # 슬라이드 타입별 채우기 함수
 # ────────────────────────────────────────────
