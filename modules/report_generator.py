@@ -11,13 +11,12 @@ import os
 import copy
 import glob
 from datetime import datetime
-from pptx import Presentation
-from pptx.util import Pt, Cm, Emu
-from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.oxml.ns import qn
 from lxml import etree
 from modules.config_manager import resolve_path
+from modules.ppt_constants import (
+    FONT_NAME, BRAND_COLORS, CHART_CONFIG
+)
 
 
 def find_template(config):
@@ -75,7 +74,13 @@ def generate_report(data, config, sample_pattern=None, template_path=None,
     # ═══ (1) 마스터 헤더 ═══
     _update_slide_master(prs, header_text)
     
-    # ═══ (2) 표지 ═══
+    # ═══ 차트 스타일 일괄 적용 ═══
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if shape.has_chart:
+                style_report_chart(shape.chart)
+                
+    # ═══ 텍스트 교체 ═══
     for idx, role in slide_roles.items():
         if role == "cover":
             _update_cover(prs.slides[idx], company_name, course_name, today_str)
@@ -301,7 +306,7 @@ def _update_course_overview(slide, course, data, multi_result=None):
         else:
             cats = data.get("categories", [])
             if cats:
-                lines = [f"- {c['name']} ({len(c['questions'])}문항)" for c in cats]
+                lines = [f"- {c['name']} (평균 {c['avg']:.2f}점)" for c in cats]
                 _set_cell_text_preserve(table.cell(2, 1), "\n".join(lines))
             else:
                 _set_cell_text_preserve(table.cell(2, 1), full_name)
@@ -604,7 +609,9 @@ def _fill_empty_placeholders(prs, company, course_name):
             elif "내용" in text or "텍스트" in text:
                 _replace_text_preserve_format(shape.text_frame, f"{company} {course_name}")
             elif not text and "title" in name:
-                pass  # 제목은 비워둬도 됨 (레이아웃 기본값)
+                # 제목 폰트 강제
+                shape.text_frame.paragraphs[0].font.name = FONT_NAME
+                pass
     
     # 표 빈 셀도 채우기
     for slide in prs.slides:
@@ -693,8 +700,13 @@ def _replace_text_preserve_format(text_frame, new_text):
                 t = etree.SubElement(r, qn('a:t'))
             t.text = line
             p.append(r)
-        else:
             r = etree.SubElement(p, qn('a:r'))
+            rPr = etree.SubElement(r, qn('a:rPr'))
+            rPr.set('lang', 'ko-KR')
+            alt_font = etree.SubElement(rPr, qn('a:latin'))
+            alt_font.set('typeface', FONT_NAME)
+            ea_font = etree.SubElement(rPr, qn('a:ea'))
+            ea_font.set('typeface', FONT_NAME)
             t = etree.SubElement(r, qn('a:t'))
             t.text = line
 
@@ -896,3 +908,31 @@ def _fill_group_data_text(group_shape, question_text, answer_text):
                 _replace_text_preserve_format(shapes[1].text_frame, answer_text)
         except:
             pass
+
+def style_report_chart(chart):
+    """차트 갭, 5.00 라벨 포맷, 브랜드 컬러 일괄 적용"""
+    
+    plots = chart.plots
+    if not plots: return
+    
+    plot = plots[0]
+    
+    # 막대 두께 조정 (gap_width = 60)
+    if hasattr(plot, 'gap_width'):
+        plot.gap_width = CHART_CONFIG["gap_width"]
+
+    # 데이터 라벨 활성화 및 0.00 소수점 세팅
+    plot.has_data_labels = True
+    plot.data_labels.number_format = CHART_CONFIG["label_format"]
+    
+    # 폰트 일괄 변경
+    plot.data_labels.font.name = FONT_NAME
+    
+    # 시리즈 컬러 적용 예시 (기본은 브랜드 BLUE)
+    for index, series in enumerate(chart.series):
+        fill = series.format.fill
+        fill.solid()
+        if index == 0:
+            fill.fore_color.rgb = BRAND_COLORS["BLUE"]
+        elif index == 1:
+            fill.fore_color.rgb = BRAND_COLORS["SUCCESS"]

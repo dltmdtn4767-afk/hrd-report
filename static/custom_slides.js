@@ -189,13 +189,11 @@ function renderCSPanel() {
 
   // ── 미리보기 ──
   html += `<div class="csp-preview" id="cspPreview_${s.id}">
-    <div class="csp-preview-title">${s.title}</div>
+    <div class="csp-preview-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>${s.title}</span>
+      <button class="ppt-export-btn" style="padding:5px 14px;font-size:11px" onclick="downloadCSSlide(${activeCSIdx})">📥 PPTX 다운로드</button>
+    </div>
     <div class="csp-preview-inner" id="cspPreviewInner_${s.id}"></div>
-  </div>`;
-
-  // ── PPTX 다운로드 (차트+표 함께) ──
-  html += `<div class="ppt-export-row" style="margin-top:12px;justify-content:center">
-    <button class="ppt-export-btn" style="padding:8px 20px;font-size:12px" onclick="downloadCSSlide(${activeCSIdx})">📥 이 슬라이드 PPTX 다운로드 (차트+표 → PPT에서 편집 가능)</button>
   </div>`;
 
   html += '</div>';

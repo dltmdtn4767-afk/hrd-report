@@ -8,10 +8,14 @@ import copy
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
-from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
 from pptx.chart.data import ChartData
 from pptx.enum.chart import XL_CHART_TYPE
+from pptx.enum.text import MSO_ANCHOR
+from modules.ppt_constants import (
+    FONT_NAME, BRAND_COLORS,
+    CHART_SIZE, TABLE_SIZE,
+    CHART_CONFIG
+)
 
 BASE_DIR = Path(__file__).parent.parent
 TEMPLATE_PATH = BASE_DIR / "templates" / "template.pptx"
@@ -42,17 +46,18 @@ def _set_text(shape, text: str, bold=None, size=None, color=None, align=None):
     # 전체 텍스트 첫 단락에 설정
     for i, para in enumerate(tf.paragraphs):
         for run in para.runs:
-            run.text = text if i == 0 else ''
+            run.font.name = FONT_NAME
             if bold is not None: run.font.bold = bold
             if size: run.font.size = Pt(size)
-            if color: run.font.color.rgb = RGBColor(*color)
+            if color: run.font.color.rgb = color # color is already RGBColor or from constants
             break
         if i == 0 and not para.runs:
             run = para.add_run()
             run.text = text
+            run.font.name = FONT_NAME
             if bold is not None: run.font.bold = bold
             if size: run.font.size = Pt(size)
-            if color: run.font.color.rgb = RGBColor(*color)
+            if color: run.font.color.rgb = color
         if align and i == 0:
             para.alignment = align
         if i > 0:
@@ -74,10 +79,12 @@ def _set_table_cell(table, row, col, text, bold=False, bg=None):
         for p in tf.paragraphs:
             for r in p.runs:
                 r.text = ''
-        if tf.paragraphs:
             run = tf.paragraphs[0].add_run()
             run.text = str(text)
+            run.font.name = FONT_NAME
             run.font.bold = bold
+            from pptx.enum.text import MSO_VERTICAL_ANCHOR
+            cell.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE # 수직 중앙 정렬
             if bg:
                 from pptx.oxml.ns import qn
                 from lxml import etree
@@ -214,24 +221,27 @@ def _fill_quant_chart(slide, group: dict):
     tbl_shape = _find_shape(slide, '표')
     if tbl_shape and tbl_shape.has_table:
         tbl = tbl_shape.table
-        # 헤더 (D9D9D9)
-        _set_table_cell(tbl, 0, 0, '항목', bold=True, bg='D9D9D9')
-        _set_table_cell(tbl, 0, 1, '문항', bold=True, bg='D9D9D9')
-        _set_table_cell(tbl, 0, 2, '평균', bold=True, bg='D9D9D9')
+        # 헤더
+        _set_table_cell(tbl, 0, 0, '항목', bold=True, bg='F1F5F9')
+        _set_table_cell(tbl, 0, 1, '문항', bold=True, bg='F1F5F9')
+        _set_table_cell(tbl, 0, 2, '평균', bold=True, bg='F1F5F9')
         if len(tbl.columns) > 3:
-            _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='D9D9D9')
+            _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='F1F5F9')
+
         for i, q in enumerate(questions):
             r = i + 1
-            try:
-                if r < tbl.rows.__len__():
-                    _set_table_cell(tbl, r, 0, q.get('id', str(i+1)))
-                    _set_table_cell(tbl, r, 1, q.get('label', ''))
-                    avg_val = q.get('avg', 0)
-                    _set_table_cell(tbl, r, 2, f"{avg_val:.2f}")
-                    if len(tbl.columns) > 3:
-                        _set_table_cell(tbl, r, 3, str(q.get('count', '')))
-            except Exception:
-                pass
+            if r >= tbl.rows.__len__(): break
+            
+            _set_table_cell(tbl, r, 0, q.get('category', q.get('id', '')))
+            _set_table_cell(tbl, r, 1, q.get('label', ''))
+            avg_val = q.get('avg', 0)
+            _set_table_cell(tbl, r, 2, f"{avg_val:.02f}")
+            if len(tbl.columns) > 3:
+                _set_table_cell(tbl, r, 3, str(q.get('count', '')))
+        
+        # 스타일 및 병합 적용
+        apply_table_style(tbl)
+        merge_table_headers(tbl)
 
     # ── 네이티브 차트 삽입 (데이터 시트 포함 → PPT에서 더블클릭 편집 가능) ──
     has_chart = False
@@ -246,20 +256,23 @@ def _fill_quant_chart(slide, group: dict):
             # 차트 스타일 설정
             try:
                 plot = chart.plots[0]
-                plot.gap_width = 80
+                plot.gap_width = CHART_CONFIG["gap_width"]
+                chart.category_axis.tick_labels.font.name = FONT_NAME
+                chart.value_axis.tick_labels.font.name = FONT_NAME
+                chart.value_axis.major_gridlines.format.line.color.rgb = BRAND_COLORS["GRID"]
                 for pt_idx, q in enumerate(questions):
                     try:
                         pt = plot.series[0].points[pt_idx]
                         avg = q.get('avg', 0)
                         if avg >= 4.5:
                             pt.format.fill.solid()
-                            pt.format.fill.fore_color.rgb = RGBColor(0x36, 0xA8, 0x6F)  # 초록
+                            pt.format.fill.fore_color.rgb = BRAND_COLORS["SUCCESS"]
                         elif avg < 3.5:
                             pt.format.fill.solid()
-                            pt.format.fill.fore_color.rgb = RGBColor(0xE7, 0x4C, 0x3C)  # 빨강
+                            pt.format.fill.fore_color.rgb = BRAND_COLORS["DANGER"]
                         else:
                             pt.format.fill.solid()
-                            pt.format.fill.fore_color.rgb = RGBColor(0x4A, 0x90, 0xD9)  # 파랑
+                            pt.format.fill.fore_color.rgb = BRAND_COLORS["BLUE"]
                     except Exception:
                         pass
             except Exception:
@@ -284,8 +297,8 @@ def _add_native_chart(slide, questions, title):
     # 차트 위치: 슬라이드 왼쪽 상단 ~ 중앙
     x = Inches(0.5)
     y = Inches(1.2)
-    cx = Inches(9.5)
-    cy = Inches(3.0)
+    cx = CHART_SIZE["width"]
+    cy = CHART_SIZE["height"]
 
     chart_frame = slide.shapes.add_chart(
         XL_CHART_TYPE.COLUMN_CLUSTERED,
@@ -297,13 +310,14 @@ def _add_native_chart(slide, questions, title):
     chart.has_legend = False
     try:
         plot = chart.plots[0]
-        plot.gap_width = 80
+        plot.gap_width = CHART_CONFIG["gap_width"]
         # 데이터 레이블 표시
         plot.has_data_labels = True
         data_labels = plot.data_labels
-        data_labels.number_format = '0.00'
+        data_labels.number_format = CHART_CONFIG["label_format"]
         data_labels.font.size = Pt(9)
         data_labels.font.bold = True
+        data_labels.font.name = FONT_NAME
 
         # 색상: 점수에 따라 분류
         for pt_idx, q in enumerate(questions):
@@ -312,11 +326,11 @@ def _add_native_chart(slide, questions, title):
                 avg = q.get('avg', 0)
                 pt.format.fill.solid()
                 if avg >= 4.5:
-                    pt.format.fill.fore_color.rgb = RGBColor(0x36, 0xA8, 0x6F)
+                    pt.format.fill.fore_color.rgb = BRAND_COLORS["SUCCESS"]
                 elif avg < 3.5:
-                    pt.format.fill.fore_color.rgb = RGBColor(0xE7, 0x4C, 0x3C)
+                    pt.format.fill.fore_color.rgb = BRAND_COLORS["DANGER"]
                 else:
-                    pt.format.fill.fore_color.rgb = RGBColor(0x4A, 0x90, 0xD9)
+                    pt.format.fill.fore_color.rgb = BRAND_COLORS["BLUE"]
             except Exception:
                 pass
     except Exception:
@@ -336,6 +350,9 @@ def _add_native_chart(slide, questions, title):
     try:
         cat_axis = chart.category_axis
         cat_axis.tick_labels.font.size = Pt(8)
+        cat_axis.tick_labels.font.name = FONT_NAME
+        chart.value_axis.tick_labels.font.name = FONT_NAME
+        chart.value_axis.major_gridlines.format.line.color.rgb = BRAND_COLORS["GRID"]
     except Exception:
         pass
 
@@ -409,25 +426,30 @@ def _fill_custom_quant(slide, custom_data: dict):
         overall = sum(g.get('avg', 0) for g in groups) / max(len(groups), 1)
         last = min(len(groups), n_cols - 1)
         if last < n_cols:
-            _set_table_cell(tbl, 0, last, '과정 전반', bold=True, bg='F0BEF8')
+            _set_table_cell(tbl, 0, last, '과정 전반', bold=True, bg='EFF6FF')
             _set_table_cell(tbl, 1, last, f"{overall:.2f}")
     else:
-        _set_table_cell(tbl, 0, 0, '항목', bold=True, bg='D9D9D9')
-        _set_table_cell(tbl, 0, 1, '문항', bold=True, bg='D9D9D9')
-        _set_table_cell(tbl, 0, 2, '평균', bold=True, bg='D9D9D9')
-        _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='D9D9D9')
+        _set_table_cell(tbl, 0, 0, '항목', bold=True, bg='F1F5F9')
+        _set_table_cell(tbl, 0, 1, '문항', bold=True, bg='F1F5F9')
+        _set_table_cell(tbl, 0, 2, '평균', bold=True, bg='F1F5F9')
+        _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='F1F5F9')
         row_idx = 1
         for g in groups:
+            cur_cat_name = g.get('name', '')
             if row_idx < tbl.rows.__len__():
-                _set_table_cell(tbl, row_idx, 0, g.get('name', ''), bold=True, bg='E7E6E6')
+                _set_table_cell(tbl, row_idx, 0, cur_cat_name, bold=True, bg='F1F5F9')
                 _set_table_cell(tbl, row_idx, 2, f"{g.get('avg', 0):.2f}")
                 row_idx += 1
             for q in g.get('questions', []):
                 if row_idx < tbl.rows.__len__():
+                    _set_table_cell(tbl, row_idx, 0, cur_cat_name)
                     _set_table_cell(tbl, row_idx, 1, q.get('label', ''))
                     _set_table_cell(tbl, row_idx, 2, f"{q.get('avg', 0):.2f}")
                     _set_table_cell(tbl, row_idx, 3, str(q.get('count', '')))
                     row_idx += 1
+        
+        apply_table_style(tbl)
+        merge_table_headers(tbl)
 
 
 # ────────────────────────────────────────────

@@ -388,12 +388,17 @@ async def export_element(payload: dict):
     payload: { type: 'chart'|'table', title: str, data: {...} }
     """
     from pptx import Presentation as Prs
-    from pptx.util import Inches, Pt, Emu
+    from pptx.util import Inches, Pt, Emu, Cm
     from pptx.dml.color import RGBColor
     from pptx.chart.data import ChartData
     from pptx.enum.chart import XL_CHART_TYPE
     from pptx.enum.text import PP_ALIGN
     from urllib.parse import quote
+    from modules.ppt_constants import (
+        FONT_NAME, BRAND_COLORS,
+        CHART_SIZE, TABLE_SIZE,
+        CHART_CONFIG
+    )
     import tempfile
 
     elem_type = payload.get("type", "chart")  # 'chart' or 'table'
@@ -423,7 +428,7 @@ async def export_element(payload: dict):
             ct = XL_CHART_TYPE.LINE
 
         chart_frame = slide.shapes.add_chart(
-            ct, Inches(1.0), Inches(1.5), Inches(8.0), Inches(4.5), cd
+            ct, Inches(0.5), Inches(1.2), CHART_SIZE["width"], CHART_SIZE["height"], cd
         )
         chart = chart_frame.chart
         chart.has_legend = False
@@ -433,9 +438,10 @@ async def export_element(payload: dict):
             plot.gap_width = 80
             plot.has_data_labels = True
             dl = plot.data_labels
-            dl.number_format = '0.00'
+            dl.number_format = CHART_CONFIG["label_format"]
             dl.font.size = Pt(10)
             dl.font.bold = True
+            dl.font.name = FONT_NAME
 
             colors = data.get("colors", [])
             for pi in range(len(values)):
@@ -449,19 +455,28 @@ async def export_element(payload: dict):
                     else:
                         v = values[pi]
                         if v >= 4.5:
-                            pt.format.fill.fore_color.rgb = RGBColor(0x36,0xA8,0x6F)
+                            pt.format.fill.fore_color.rgb = BRAND_COLORS["SUCCESS"]
                         elif v < 3.5:
-                            pt.format.fill.fore_color.rgb = RGBColor(0xE7,0x4C,0x3C)
+                            pt.format.fill.fore_color.rgb = BRAND_COLORS["DANGER"]
                         else:
-                            pt.format.fill.fore_color.rgb = RGBColor(0x4A,0x90,0xD9)
+                            pt.format.fill.fore_color.rgb = BRAND_COLORS["BLUE"]
                 except: pass
         except: pass
 
         try:
+            plot = chart.plots[0]
+            plot.gap_width = CHART_CONFIG["gap_width"]
             chart.value_axis.minimum_scale = 0
             chart.value_axis.maximum_scale = 5
             chart.value_axis.major_unit = 1
-            chart.category_axis.tick_labels.font.size = Pt(9)
+            chart.category_axis.tick_labels.font.size = Pt(10)
+            chart.category_axis.tick_labels.font.name = FONT_NAME
+            chart.value_axis.tick_labels.font.size = Pt(10)
+            chart.value_axis.tick_labels.font.name = FONT_NAME
+            # 눈금선 제거
+            chart.value_axis.has_major_gridlines = True
+            chart.value_axis.major_gridlines.format.line.color.rgb = BRAND_COLORS["GRID"]
+            chart.value_axis.has_minor_gridlines = False
         except: pass
 
     elif elem_type == "table":
@@ -477,7 +492,7 @@ async def export_element(payload: dict):
 
         tbl_shape = slide.shapes.add_table(
             n_rows, n_cols,
-            Inches(1.0), Inches(1.0), Inches(8.0), Emu(int(Inches(0.35).emu * n_rows))
+            Inches(0.5), Inches(1.5), TABLE_SIZE["width"], TABLE_SIZE["height"]
         )
         tbl = tbl_shape.table
 
@@ -500,7 +515,7 @@ async def export_element(payload: dict):
                     tcPr = etree.SubElement(tc, qn('a:tcPr'))
                 solidFill = etree.SubElement(tcPr, qn('a:solidFill'))
                 srgb = etree.SubElement(solidFill, qn('a:srgbClr'))
-                srgb.set('val', 'D9D9D9')
+                srgb.set('val', 'F1F5F9') # HEX_GRAY_100 equivalent
 
         # 데이터 행
         for ri, row in enumerate(rows_data):
@@ -530,9 +545,7 @@ async def export_element(payload: dict):
 
 @app.post("/api/export_slide")
 async def export_slide(payload: dict):
-    """차트+표 합쳐서 하나의 슬라이드에 넣은 PPTX 생성
-    payload: { title: str, chart: {labels,values,chartType,colors}|null, table: {headers,rows}|null }
-    """
+    """차트+표 합쳐서 하나의 슬라이드에 넣은 PPTX 생성 (템플릿 디자인 매칭)"""
     from pptx import Presentation as Prs
     from pptx.util import Inches, Pt, Emu
     from pptx.dml.color import RGBColor
@@ -540,7 +553,24 @@ async def export_slide(payload: dict):
     from pptx.enum.chart import XL_CHART_TYPE
     from pptx.enum.text import PP_ALIGN
     from urllib.parse import quote
-    import tempfile
+
+    from modules.ppt_constants import (
+        FONT_NAME, BRAND_COLORS,
+        CHART_SIZE, TABLE_SIZE,
+        CHART_CONFIG
+    )
+
+    def _hex_to_rgb(h):
+        h = h.lstrip('#')
+        return RGBColor(int(h[0:2],16), int(h[2:4],16), int(h[4:6],16))
+
+    def _pastel(h):
+        h = h.lstrip('#')
+        r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+        r = int(r * 0.6 + 255 * 0.4)
+        g = int(g * 0.6 + 255 * 0.4)
+        b = int(b * 0.6 + 255 * 0.4)
+        return RGBColor(min(r,255), min(g,255), min(b,255))
 
     title = payload.get("title", "슬라이드")
     chart_data = payload.get("chart")
@@ -549,128 +579,117 @@ async def export_slide(payload: dict):
     prs = Prs()
     prs.slide_width = Inches(13.33)
     prs.slide_height = Inches(7.5)
-    blank_layout = prs.slide_layouts[6]
-    slide = prs.slides.add_slide(blank_layout)
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
 
-    # 제목
-    from pptx.util import Inches, Pt
-    txBox = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(12), Inches(0.5))
+    # 제목 (세로바 + 텍스트)
+    bar_shape = slide.shapes.add_shape(1, Inches(0.4), Inches(0.25), Inches(0.08), Inches(0.35))
+    bar_shape.fill.solid()
+    bar_shape.fill.fore_color.rgb = BRAND_COLORS["BLUE"]
+    bar_shape.line.fill.background()
+
+    txBox = slide.shapes.add_textbox(Inches(0.6), Inches(0.2), Inches(12), Inches(0.45))
     tf = txBox.text_frame
     p = tf.paragraphs[0]
     p.text = title
-    p.font.size = Pt(18)
+    p.font.size = Pt(16)
     p.font.bold = True
+    p.font.name = FONT_NAME
     p.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
 
     has_chart = chart_data is not None
     has_table = table_data is not None
-
     if has_chart and has_table:
-        chart_top, chart_h = Inches(0.8), Inches(3.8)
-        table_top = Inches(4.8)
+        chart_top, chart_h = Inches(0.75), Inches(4.0)
+        table_top = Inches(5.0)
     elif has_chart:
-        chart_top, chart_h = Inches(0.8), Inches(5.5)
+        chart_top, chart_h = Inches(0.75), Inches(5.8)
         table_top = None
     else:
         chart_top, chart_h = None, None
-        table_top = Inches(0.8)
+        table_top = Inches(0.75)
 
-    # ── 차트 ──
     if has_chart:
         labels = chart_data.get("labels", [])
         values = chart_data.get("values", [])
         colors_hex = chart_data.get("colors", [])
         chart_type_str = chart_data.get("chartType", "bar")
-
         cd = ChartData()
         cd.categories = labels
         cd.add_series('평균', [round(v, 2) for v in values])
-
         ct = XL_CHART_TYPE.COLUMN_CLUSTERED
         if chart_type_str == "horizontalBar":
             ct = XL_CHART_TYPE.BAR_CLUSTERED
         elif chart_type_str == "line":
             ct = XL_CHART_TYPE.LINE
-
-        chart_frame = slide.shapes.add_chart(
-            ct, Inches(0.8), chart_top, Inches(11.5), chart_h, cd
-        )
-        chart = chart_frame.chart
-        chart.has_legend = False
-
-        # 데이터 라벨
-        plot = chart.plots[0]
+        chart_frame = slide.shapes.add_chart(ct, Inches(0.5), chart_top, Inches(12.3), chart_h, cd)
+        chart_obj = chart_frame.chart
+        chart_obj.has_legend = False
+        chart_obj.font.name = FONT_NAME
+        plot = chart_obj.plots[0]
         plot.has_data_labels = True
-        data_labels = plot.data_labels
-        data_labels.font.size = Pt(9)
-        data_labels.font.bold = True
-        data_labels.number_format = '0.00'
-
-        # 막대 색상
+        plot.data_labels.font.size = Pt(9)
+        plot.data_labels.font.bold = True
+        plot.data_labels.font.name = FONT_NAME
+        plot.data_labels.number_format = CHART_CONFIG["label_format"]
         if ct != XL_CHART_TYPE.LINE:
-            plot.gap_width = 80
+            plot.gap_width = CHART_CONFIG["gap_width"]
             series = plot.series[0]
             for i, c_hex in enumerate(colors_hex):
                 if i < len(series.points):
-                    pt = series.points[i]
-                    c_hex_clean = c_hex.lstrip('#')
-                    pt.format.fill.solid()
-                    pt.format.fill.fore_color.rgb = RGBColor(
-                        int(c_hex_clean[0:2],16), int(c_hex_clean[2:4],16), int(c_hex_clean[4:6],16)
-                    )
+                    series.points[i].format.fill.solid()
+                    series.points[i].format.fill.fore_color.rgb = _hex_to_rgb(c_hex) if c_hex else BRAND_COLORS["BLUE"]
+        va = chart_obj.value_axis
+        va.maximum_scale = 5.0
+        va.minimum_scale = 0
+        va.major_unit = 1.0
+        va.has_major_gridlines = True
+        va.major_gridlines.format.line.color.rgb = RGBColor(0xDD, 0xDD, 0xDD)
+        va.tick_labels.font.size = Pt(8)
+        va.tick_labels.font.name = FONT_NAME
+        ca = chart_obj.category_axis
+        ca.tick_labels.font.size = Pt(8)
+        ca.tick_labels.font.name = FONT_NAME
 
-        # Y축 최대값
-        value_axis = chart.value_axis
-        value_axis.maximum_scale = 5.0
-        value_axis.minimum_scale = 0
-        value_axis.major_gridlines.format.line.color.rgb = RGBColor(0xDD, 0xDD, 0xDD)
-
-    # ── 표 ──
     if has_table:
         headers = table_data.get("headers", [])
         rows_data = table_data.get("rows", [])
+        t_colors = chart_data.get("colors", []) if chart_data else []
         n_cols = len(headers)
         n_rows = 1 + len(rows_data)
-
-        tbl_h = Emu(int(Inches(0.3).emu * n_rows))
-        tbl_shape = slide.shapes.add_table(
-            n_rows, n_cols,
-            Inches(0.8), table_top, Inches(11.5), tbl_h
-        )
+        row_h = Inches(0.32)
+        tbl_shape = slide.shapes.add_table(n_rows, n_cols, Inches(0.5), table_top, Inches(12.3), Emu(int(row_h.emu * n_rows)))
         tbl = tbl_shape.table
-
-        # 헤더
         for ci, h in enumerate(headers):
             cell = tbl.cell(0, ci)
             cell.text = str(h)
             cell.fill.solid()
-            cell.fill.fore_color.rgb = RGBColor(0x36, 0xA8, 0x6F)
-            for p in cell.text_frame.paragraphs:
-                p.alignment = PP_ALIGN.CENTER
-                for r in p.runs:
-                    r.font.size = Pt(10)
-                    r.font.bold = True
-                    r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-
-        # 데이터
+            cell.fill.fore_color.rgb = _pastel(t_colors[ci]) if ci < len(t_colors) else RGBColor(0xF0, 0xF0, 0xF0)
+            for pp in cell.text_frame.paragraphs:
+                pp.alignment = PP_ALIGN.CENTER
+                for rr in pp.runs:
+                    rr.font.size = Pt(9)
+                    rr.font.bold = True
+                    rr.font.name = FONT_NAME
+                    rr.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
         for ri, row in enumerate(rows_data):
             for ci, val in enumerate(row):
                 if ci < n_cols and ri + 1 < n_rows:
                     cell = tbl.cell(ri + 1, ci)
                     cell.text = str(val)
-                    for p in cell.text_frame.paragraphs:
-                        p.alignment = PP_ALIGN.CENTER
-                        for r in p.runs:
-                            r.font.size = Pt(9)
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                    for pp in cell.text_frame.paragraphs:
+                        pp.alignment = PP_ALIGN.CENTER
+                        for rr in pp.runs:
+                            rr.font.size = Pt(9)
+                            rr.font.name = FONT_NAME
 
-    # 저장
     out_dir = BASE_DIR / "output"
     out_dir.mkdir(exist_ok=True)
     safe_title = title.replace(' ','_')[:20]
     filename = f"{safe_title}.pptx"
     out_path = out_dir / filename
     prs.save(str(out_path))
-
     safe_fn = quote(filename)
     return FileResponse(
         str(out_path),
