@@ -252,13 +252,19 @@ def _fill_quant_chart(slide, group: dict):
     tbl_shape = _find_shape(slide, '표')
     if tbl_shape and tbl_shape.has_table:
         tbl = tbl_shape.table
+        
+        # 컬럼 수 결정 (config 또는 group 데이터에서 결정)
+        show_count = group.get('showCount', True)
+        n_cols = 4 if show_count and len(tbl.columns) >= 4 else 3
+        
         # 헤더
         _set_table_cell(tbl, 0, 0, '항목', bold=True, bg='F1F5F9')
         _set_table_cell(tbl, 0, 1, '문항', bold=True, bg='F1F5F9')
         _set_table_cell(tbl, 0, 2, '평균', bold=True, bg='F1F5F9')
-        if len(tbl.columns) > 3:
+        if n_cols > 3:
             _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='F1F5F9')
 
+        last_row = 1
         for i, q in enumerate(questions):
             r = i + 1
             if r >= tbl.rows.__len__(): break
@@ -267,8 +273,27 @@ def _fill_quant_chart(slide, group: dict):
             _set_table_cell(tbl, r, 1, q.get('label', ''))
             avg_val = q.get('avg', 0)
             _set_table_cell(tbl, r, 2, f"{avg_val:.02f}")
-            if len(tbl.columns) > 3:
+            if n_cols > 3:
                 _set_table_cell(tbl, r, 3, str(q.get('count', '')))
+            last_row = r + 1
+        
+        # ═══ 전체 종합 만족도 행 추가 (병합) ═══
+        if last_row < tbl.rows.__len__():
+            try:
+                # 데이터 상의 전체 평균 또는 계산된 평균
+                overall_avg = group.get('overallAvg')
+                if overall_avg is None and questions:
+                    overall_avg = sum(q.get('avg', 0) for q in questions) / len(questions)
+                
+                label_text = f"전체 종합 만족도 : {overall_avg:.2f}점" if overall_avg is not None else "전체 종합 만족도"
+                _set_table_cell(tbl, last_row, 0, label_text, bold=True, bg='F8FAFC')
+                
+                # 모든 열 병합
+                start_cell = tbl.cell(last_row, 0)
+                end_cell = tbl.cell(last_row, n_cols - 1)
+                start_cell.merge(end_cell)
+            except Exception:
+                pass
         
         # 스타일 및 병합 적용
         apply_table_style(tbl)
@@ -460,10 +485,16 @@ def _fill_custom_quant(slide, custom_data: dict):
             _set_table_cell(tbl, 0, last, '과정 전반', bold=True, bg='EFF6FF')
             _set_table_cell(tbl, 1, last, f"{overall:.2f}")
     else:
+        # 컬럼 수 결정
+        show_count = custom_data.get('showCount', True)
+        n_cols = 4 if show_count and len(tbl.columns) >= 4 else 3
+
         _set_table_cell(tbl, 0, 0, '항목', bold=True, bg='F1F5F9')
         _set_table_cell(tbl, 0, 1, '문항', bold=True, bg='F1F5F9')
         _set_table_cell(tbl, 0, 2, '평균', bold=True, bg='F1F5F9')
-        _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='F1F5F9')
+        if n_cols > 3:
+            _set_table_cell(tbl, 0, 3, '응답인원', bold=True, bg='F1F5F9')
+
         row_idx = 1
         for g in groups:
             cur_cat_name = g.get('name', '')
@@ -476,9 +507,28 @@ def _fill_custom_quant(slide, custom_data: dict):
                     _set_table_cell(tbl, row_idx, 0, cur_cat_name)
                     _set_table_cell(tbl, row_idx, 1, q.get('label', ''))
                     _set_table_cell(tbl, row_idx, 2, f"{q.get('avg', 0):.2f}")
-                    _set_table_cell(tbl, row_idx, 3, str(q.get('count', '')))
+                    if n_cols > 3:
+                        _set_table_cell(tbl, row_idx, 3, str(q.get('count', '')))
                     row_idx += 1
         
+        # ═══ 전체 종합 만족도 행 추가 (병합) ═══
+        if row_idx < tbl.rows.__len__():
+            try:
+                overall_avg = custom_data.get('overallAvg')
+                if overall_avg is None:
+                    all_qs = [q for g in groups for q in g.get('questions', [])]
+                    if all_qs:
+                        overall_avg = sum(q.get('avg', 0) for q in all_qs) / len(all_qs)
+                
+                label_text = f"전체 종합 만족도 : {overall_avg:.2f}점" if overall_avg is not None else "전체 종합 만족도"
+                _set_table_cell(tbl, row_idx, 0, label_text, bold=True, bg='F8FAFC')
+                
+                start_cell = tbl.cell(row_idx, 0)
+                end_cell = tbl.cell(row_idx, n_cols - 1)
+                start_cell.merge(end_cell)
+            except Exception:
+                pass
+
         apply_table_style(tbl)
         merge_table_headers(tbl)
 
@@ -534,14 +584,37 @@ def build_custom_ppt(slides: list, quant_groups: list, qual_data: list,
     custom_quant_slides = [s for s in slides if s.get('type') == 'custom_quant']
     for cs in custom_quant_slides:
         cs_data = cs.get('data', {})
-        new_slide = _clone_slide(prs, TPL_QUANT)
-        _fill_custom_quant(new_slide, cs_data)
-        # 정성 슬라이드 앞에 삽입
-        xml_slides = prs.slides._sldIdLst
-        last = xml_slides[-1]
-        qual_xml_idx = len(prs.slides) - 2
-        xml_slides.remove(last)
-        xml_slides.insert(qual_xml_idx, last)
+        
+        # 'splitByGroup' 모드가 켜져 있으면 그룹마다 슬라이드 분리
+        if cs_data.get('splitByGroup') and len(cs_data.get('groups', [])) > 1:
+            for g in cs_data['groups']:
+                new_slide = _clone_slide(prs, TPL_QUANT)
+                # 그룹 1개 인것처럼 변환
+                single_group_data = copy.deepcopy(cs_data)
+                single_group_data['groups'] = [g]
+                single_group_data['title'] = f"{cs_data.get('title', '')} - {g.get('name', '')}"
+                
+                # 표 스타일 강제 전환 (그룹 1개일 때는 'B'가 적합)
+                if single_group_data.get('tableStyle') == 'A':
+                    single_group_data['tableStyle'] = 'B'
+                
+                _fill_custom_quant(new_slide, single_group_data)
+                
+                # 삽입 위치 조정
+                xml_slides = prs.slides._sldIdLst
+                last = xml_slides[-1]
+                qual_xml_idx = len(prs.slides) - 2
+                xml_slides.remove(last)
+                xml_slides.insert(qual_xml_idx, last)
+        else:
+            new_slide = _clone_slide(prs, TPL_QUANT)
+            _fill_custom_quant(new_slide, cs_data)
+            # 정성 슬라이드 앞에 삽입
+            xml_slides = prs.slides._sldIdLst
+            last = xml_slides[-1]
+            qual_xml_idx = len(prs.slides) - 2
+            xml_slides.remove(last)
+            xml_slides.insert(qual_xml_idx, last)
 
     # ── 3. 파일명 & 저장 ─────────────────────────
     company  = cover_data.get('company', '')

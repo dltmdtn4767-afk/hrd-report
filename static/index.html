@@ -92,7 +92,16 @@
     <div class="section-card collapsible" id="quantSummaryCard">
       <div class="section-header">
         <h3 id="quantSummaryTitle" onclick="toggleSection(this)" style="cursor:pointer"><span class="collapse-arrow">▼</span> 정량 평가 종합</h3>
-        <button class="copy-btn" data-target="quantSummaryTable">복사</button>
+        <div class="header-toolbar">
+          <div class="color-btns" style="display:inline-flex;gap:4px;margin-right:8px">
+            <button class="color-dot-btn success" title="Success (4.5↑)" onclick="changeChartColors('summary', 'success')"></button>
+            <button class="color-dot-btn danger" title="Danger (3.5↓)" onclick="changeChartColors('summary', 'danger')"></button>
+            <button class="color-dot-btn primary" title="Blue (Default)" onclick="changeChartColors('summary', 'primary')"></button>
+            <button class="color-dot-btn unified" title="Unified Green" onclick="changeChartColors('summary', 'unified')"></button>
+          </div>
+          <button class="export-btn secondary" onclick="exportQuantSummaryToPPT()">📥 PPT 표</button>
+          <button class="copy-btn" data-target="quantSummaryTable">복사</button>
+        </div>
       </div>
       <div class="chart-table-wrap">
         <div class="chart-wrap">
@@ -118,6 +127,13 @@
       <div class="section-header">
         <h3 onclick="toggleSection(this)" style="cursor:pointer"><span class="collapse-arrow">▼</span> 문항별 상세 결과</h3>
         <div class="detail-toolbar">
+          <div class="color-btns" style="display:inline-flex;gap:4px;margin-right:8px">
+            <button class="color-dot-btn success" title="Success" onclick="changeChartColors('detail', 'success')"></button>
+            <button class="color-dot-btn danger" title="Danger" onclick="changeChartColors('detail', 'danger')"></button>
+            <button class="color-dot-btn primary" title="Blue" onclick="changeChartColors('detail', 'primary')"></button>
+            <button class="color-dot-btn unified" title="Unified" onclick="changeChartColors('detail', 'unified')"></button>
+          </div>
+          <button class="export-btn secondary" onclick="exportQuantDetailToPPT()">📥 PPT 표</button>
           <button class="sel-btn" id="selectModeBtn" onclick="toggleSelectMode()">☑ 선택 모드</button>
           <button class="add-to-builder-btn" id="addToBuilderBtn" onclick="addSelectedToBuilder()" style="display:none">📊 빌더에 추가</button>
           <button class="export-btn" id="exportExcelBtn" onclick="exportToExcel()" style="display:none">📊 Excel 내보내기</button>

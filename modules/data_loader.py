@@ -438,16 +438,24 @@ def _build_result(headers, response_count, course_info):
             # 의미 있는 텍스트 추출 (블랙리스트 제외)
             meaningful_texts = [t for t in raw_texts if len(str(t).strip()) >= 2 and t not in LABEL_BLACKLIST]
             
-            # [수치 데이터 우선 판별 원칙]
-            # 1. 수치 데이터가 과반수(또는 텍스트보다 많음)인 경우 정량 유지
-            # 2. 텍스트가 발견되도 수치가 충분하면 정성으로 바꾸지 않음
-            is_numeric_dominant = score_count > 0 and (score_count >= text_count)
+            # [수치 데이터 우선 판별 원칙 강화]
+            # 1. 1~5점 사이의 점수가 1개라도 있으면 일단 정량 후보
+            # 2. 정량 데이터가 전체 유효 데이터(수치+텍스트)의 30% 이상이면 정량으로 유지
+            has_valid_range_score = any(1 <= s <= 5 for s in valid_scores)
+            total_valid_count = score_count + text_count
             
-            if not is_numeric_dominant:
-                # 수치가 없거나 텍스트가 압도적일 때만 정성으로 전환
+            # 수치 데이터가 어느 정도 존재하거나, 1-5점 패턴이 명확한 경우
+            is_likely_quant = has_valid_range_score or (score_count > 0 and (score_count / max(total_valid_count, 1) >= 0.3))
+
+            if not is_likely_quant:
+                # 수치가 거의 없거나 1-5 범위를 벗어나는 경우에만 정성으로 전환 검토
                 if len(meaningful_texts) > 0 or (null_ratio >= OPEN_ENDED_NULL_THRESHOLD and text_count > 0):
                     q["is_open_ended"] = True
                     q["answers"] = raw_texts
+            else:
+                # 정량으로 판별된 경우, 발견된 텍스트들은 'metadata' 성격의 응답으로 저장 (차후 프리뷰 활용 가능)
+                if meaningful_texts:
+                    q["comment_metadata"] = meaningful_texts
 
         if q["is_open_ended"]:
             # 정성 응답에서도 블랙리스트 제거

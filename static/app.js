@@ -281,8 +281,19 @@ function renderQuantData(data, label, sessions) {
   renderSummaryChart(cats);
   renderDetailChart(qs);
 
-  // PPT 내보내기 버튼 삽입
+  // 데이터 캐시 (내보내기 용)
   _addExportButtons(cats, qs, resp);
+}
+
+// ── 데이터 캐시 (내보내기 용) ──
+let currentSummaryData = [];
+let currentDetailData = [];
+let currentRespCount = 0;
+
+function _addExportButtons(cats, qs, resp) {
+  currentSummaryData = cats;
+  currentDetailData = qs;
+  currentRespCount = resp;
 }
 
 
@@ -1088,6 +1099,132 @@ async function _downloadElement(type, title, data) {
     URL.revokeObjectURL(url);
     _showCopyToast(`📥 ${title}.pptx 다운 완료 → 열어서 Ctrl+C → PPT에 Ctrl+V`);
   } catch(e) { alert('다운로드 실패: '+e.message); }
+}
+
+window.changeChartColors = changeChartColors;
+window.exportQuantSummaryToPPT = exportQuantSummaryToPPT;
+window.exportQuantDetailToPPT = exportQuantDetailToPPT;
+
+// ── 차트 색상 변경 모드 ──
+let chartColorModes = { summary: 'primary', detail: 'primary' };
+
+function changeChartColors(type, mode) {
+  chartColorModes[type] = mode;
+  
+  // 버튼 active 표시
+  const sectionId = type === 'summary' ? 'quantSummaryCard' : 'quantDetailCard';
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.querySelectorAll('.color-dot-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.classList.contains(mode));
+    });
+  }
+
+  if (type === 'summary') {
+    if (charts.summary) {
+      const data = charts.summary.data.datasets[0].data;
+      charts.summary.data.datasets[0].backgroundColor = data.map(v => getModeColor(v, mode));
+      charts.summary.update();
+    }
+  } else {
+    if (charts.detail) {
+      const data = charts.detail.data.datasets[0].data;
+      charts.detail.data.datasets[0].backgroundColor = data.map(v => getModeColor(v, mode));
+      charts.detail.update();
+    }
+  }
+}
+
+function getModeColor(val, mode) {
+  if (mode === 'unified') return '#36a86f';
+  if (mode === 'success') return '#10b981'; // var(--success)
+  if (mode === 'danger') return '#ef4444';  // var(--danger)
+  if (mode === 'primary') return scoreColor(val);
+  return scoreColor(val);
+}
+
+// ── 정량 탭에서 직접 PPT 생성 (커스텀 슬라이드 API 활용) ──
+async function exportQuantSummaryToPPT() {
+  if (!currentSummaryData.length) return;
+  const title = prompt('슬라이드 제목', '정량 평가 종합');
+  if (title === null) return;
+
+  const slide = {
+    type: 'custom_quant',
+    data: {
+      title: title,
+      tableStyle: 'B',
+      tablePos: 'below',
+      showCount: false,
+      groups: [{
+        name: '영역별 평균',
+        avg: calcGroupAvg(currentSummaryData.map(c => c.name), currentSummaryData),
+        questions: currentSummaryData.map(c => ({ label: c.name, avg: c.avg }))
+      }]
+    }
+  };
+  
+  triggerQuickPPT(slide);
+}
+
+async function exportQuantDetailToPPT() {
+  let qs = selectMode ? getSelectedQuestions() : currentDetailData;
+  if (!qs.length) { alert('데이터가 없습니다.'); return; }
+  
+  const title = prompt('슬라이드 제목', '문항별 상세 결과');
+  if (title === null) return;
+
+  const slide = {
+    type: 'custom_quant',
+    data: {
+      title: title,
+      tableStyle: 'B',
+      tablePos: 'below',
+      showCount: true,
+      groups: [{
+        name: '상세 문항',
+        questions: qs
+      }]
+    }
+  };
+  
+  triggerQuickPPT(slide);
+}
+
+function getSelectedQuestions() {
+  return Array.from(selectedIndices).map(idx => currentQuestions[idx]);
+}
+
+async function triggerQuickPPT(slide) {
+  const payload = {
+    slides: [
+      { type: 'cover', data: analysisData.summary },
+      slide
+    ],
+    quant_groups: [],
+    qual_data: [],
+    data: analysisData,
+    config: {}
+  };
+
+  try {
+    const res = await fetch('/api/build_ppt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('PPT 생성 실패');
+    const d = await res.json();
+    window.location.href = `/api/download_ppt?path=${encodeURIComponent(d.path)}`;
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function calcGroupAvg(ids, qs) {
+  const vals = qs.filter(q => ids.includes(q.id) || ids.includes(q.label)).map(q => q.avg || 0);
+  if (!vals.length) return 0;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
 function _showCopyToast(msg) {

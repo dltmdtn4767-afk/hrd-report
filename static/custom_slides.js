@@ -76,6 +76,8 @@ function addCustomSlide() {
     chartType: 'bar',
     tableStyle: 'A',
     tablePos: 'below',
+    showCount: true,      // 응답인원 포함 여부
+    splitByGroup: false,  // 개별 그래프로 분리 여부
     groups: defaultGroups,
   });
   activeCSIdx = customSlides.length - 1;
@@ -144,6 +146,13 @@ function renderCSPanel() {
         <option value="only" ${s.tablePos === 'only' ? 'selected' : ''}>표만</option>
       </select>
     </div>
+    <div class="csp-field">
+      <label>옵션</label>
+      <div style="display:flex;gap:8px;align-items:center;height:38px">
+        <label style="font-size:11px;cursor:pointer"><input type="checkbox" ${s.showCount?'checked':''} onchange="updateCS('showCount',this.checked)"> 응답인원</label>
+        <label style="font-size:11px;cursor:pointer"><input type="checkbox" ${s.splitByGroup?'checked':''} onchange="updateCS('splitByGroup',this.checked)"> 개별슬라이드</label>
+      </div>
+    </div>
     <button class="csp-del-btn" onclick="deleteCustomSlide(${activeCSIdx})">삭제</button>
   </div>`;
 
@@ -170,19 +179,35 @@ function renderCSPanel() {
                onchange="updateGroup(${gi},'color',this.value)">
         <button class="csp-group-del" onclick="removeGroup(${gi})">✕</button>
       </div>
-      <div class="csp-group-q-grid">`;
-
-    qs.forEach(q => {
-      const checked = g.qIds.includes(q.id) ? 'checked' : '';
-      const label = q.label.length > 35 ? q.label.slice(0, 35) + '…' : q.label;
-      html += `<label class="csp-gq-item">
-        <input type="checkbox" ${checked}
-               onchange="toggleGroupQ(${gi},'${q.id}',this.checked)">
-        <span>${q.id}. ${label}</span>
-        <span class="csp-gq-avg">${q.avg}</span>
-      </label>`;
+      <div class="csp-group-qs-container">`;
+    const cats = getCategories();
+    cats.forEach(cat => {
+      const catQs = qs.filter(q => q.category === cat.name);
+      if (!catQs.length) return;
+      
+      const allSelected = catQs.every(q => g.qIds.includes(q.id));
+      
+      html += `<div class="csp-cat-group">
+        <div class="csp-cat-header" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:4px 8px;background:#f8fafc;border-radius:4px">
+          <strong style="font-size:11px">${cat.name}</strong>
+          <button class="csp-cat-sel-btn" style="font-size:10px;padding:2px 6px;cursor:pointer" onclick="toggleCategoryQs(${gi}, '${cat.name.replace(/'/g,"\\'")}', ${!allSelected})">
+            ${allSelected ? '전체 해제' : '전체 선택'}
+          </button>
+        </div>
+        <div class="csp-group-q-grid">`;
+      
+      catQs.forEach(q => {
+        const checked = g.qIds.includes(q.id) ? 'checked' : '';
+        const label = q.label.length > 35 ? q.label.slice(0, 35) + '…' : q.label;
+        html += `<label class="csp-gq-item">
+          <input type="checkbox" ${checked}
+                 onchange="toggleGroupQ(${gi},'${q.id}',this.checked)">
+          <span>${q.id}. ${label}</span>
+          <span class="csp-gq-avg">${q.avg}</span>
+        </label>`;
+      });
+      html += `</div></div>`;
     });
-
     html += `</div></div>`;
   });
   html += `</div>`;
@@ -284,6 +309,24 @@ function toggleGroupQ(gi, qId, checked) {
   } else {
     g.qIds = g.qIds.filter(id => id !== qId);
   }
+  renderCSPanel();
+  syncBuilderFromCustomSlides();
+}
+
+function toggleCategoryQs(gi, catName, selected) {
+  if (activeCSIdx < 0) return;
+  const qs = getAllQuestions();
+  const catQs = qs.filter(q => q.category === catName);
+  const g = customSlides[activeCSIdx].groups[gi];
+  
+  catQs.forEach(q => {
+    if (selected) {
+      if (!g.qIds.includes(q.id)) g.qIds.push(q.id);
+    } else {
+      g.qIds = g.qIds.filter(id => id !== q.id);
+    }
+  });
+  
   renderCSPanel();
   syncBuilderFromCustomSlides();
 }
@@ -395,26 +438,29 @@ function renderTableA(s, qs) {
   });
   html += `<td><strong>${overall.toFixed(2)}</strong></td></tr>`;
   html += `<tr class="avg-row"><td colspan="${s.groups.length + 1}" style="text-align:left">
-    전체 평균: <strong>${overall.toFixed(2)}</strong>점</td></tr>`;
+    전체 종합 만족도 : <strong>${overall.toFixed(2)}</strong>점</td></tr>`;
   html += '</tbody></table>';
   return html;
 }
 
 // 스타일B: 정량 평가 (세로)
 function renderTableB(s, qs) {
+  const showCount = s.showCount !== false;
   let html = '<table class="tpl-table-b"><thead><tr>';
-  html += '<th>항목</th><th>문항</th><th>평균</th><th>응답</th></tr></thead><tbody>';
+  html += `<th>항목</th><th>문항</th><th>평균</th>${showCount ? '<th>응답</th>' : ''}</tr></thead><tbody>`;
   s.groups.forEach(g => {
     const avg = calcGroupAvg(g.qIds, qs);
-    html += `<tr class="cat-row"><td colspan="2">${g.name}</td><td>${avg.toFixed(2)}</td><td></td></tr>`;
+    html += `<tr class="cat-row"><td colspan="2">${g.name}</td><td>${avg.toFixed(2)}</td>${showCount ? '<td></td>' : ''}</tr>`;
     const matched = qs.filter(q => g.qIds.includes(q.id));
     matched.forEach(q => {
       const cls = q.avg >= 4.5 ? 'score-high' : q.avg < 3.5 ? 'score-low' : '';
       html += `<tr><td></td><td style="text-align:left">${q.id}. ${q.label}</td>
                <td class="${cls}">${q.avg?.toFixed(2) || '-'}</td>
-               <td>${q.count || '-'}</td></tr>`;
+               ${showCount ? `<td>${q.count || '-'}</td>` : ''}</tr>`;
     });
   });
+  const overall = calcGroupAvg(s.groups.flatMap(g => g.qIds), qs);
+  html += `<tr class="avg-row"><td colspan="${showCount?4:3}">전체 종합 만족도 : <strong>${overall.toFixed(2)}</strong>점</td></tr>`;
   html += '</tbody></table>';
   return html;
 }
@@ -452,6 +498,8 @@ function syncBuilderFromCustomSlides() {
         chartType: cs.chartType,
         tableStyle: cs.tableStyle,
         tablePos: cs.tablePos,
+        showCount: cs.showCount,
+        splitByGroup: cs.splitByGroup,
         groups: cs.groups.map(g => ({
           name: g.name,
           color: g.color,
@@ -459,6 +507,7 @@ function syncBuilderFromCustomSlides() {
           avg: calcGroupAvg(g.qIds, qs),
           questions: qs.filter(q => g.qIds.includes(q.id)),
         })),
+        overallAvg: calcGroupAvg(cs.groups.flatMap(g => g.qIds), qs),
       },
     });
 
@@ -511,19 +560,30 @@ async function copyCSTableToClipboard(idx) {
   const qs = getAllQuestions();
   let headers = [], rows = [];
 
-  if (s.tableStyle === 'A') {
+    if (s.tableStyle === 'A') {
     headers = [...s.groups.map(g => g.name), '과정 전반'];
     const vals = s.groups.map(g => calcGroupAvg(g.qIds, qs).toFixed(2));
     const overall = calcGroupAvg(qs.map(q => q.id), qs).toFixed(2);
     rows = [[...vals, overall]];
   } else if (s.tableStyle === 'B') {
-    headers = ['항목', '문항', '평균', '응답'];
+    const showCount = s.showCount !== false;
+    headers = showCount ? ['항목', '문항', '평균', '응답'] : ['항목', '문항', '평균'];
     s.groups.forEach(g => {
-      rows.push([g.name, '', calcGroupAvg(g.qIds, qs).toFixed(2), '']);
+      const gRow = [g.name, '', calcGroupAvg(g.qIds, qs).toFixed(2)];
+      if (showCount) gRow.push('');
+      rows.push(gRow);
+      
       qs.filter(q => g.qIds.includes(q.id)).forEach(q => {
-        rows.push(['', q.label||'', (q.avg||0).toFixed(2), q.count||'']);
+        const qRow = ['', q.label||'', (q.avg||0).toFixed(2)];
+        if (showCount) qRow.push(q.count||'');
+        rows.push(qRow);
       });
     });
+    // 종합 행 추가
+    const overall = calcGroupAvg(s.groups.flatMap(g => g.qIds), qs).toFixed(2);
+    const sumRow = [`전체 종합 만족도 : ${overall}점`];
+    for (let k=1; k<(showCount?4:3); k++) sumRow.push('');
+    rows.push(sumRow);
   } else {
     headers = ['항목', '결과'];
     s.groups.forEach(g => {
@@ -577,13 +637,23 @@ async function downloadCSSlide(idx) {
       const overall = calcGroupAvg(qs.map(q => q.id), qs).toFixed(2);
       rows = [[...vals, overall]];
     } else if (s.tableStyle === 'B') {
-      headers = ['항목', '문항', '평균', '응답'];
+      const showCount = s.showCount !== false;
+      headers = showCount ? ['항목', '문항', '평균', '응답'] : ['항목', '문항', '평균'];
       s.groups.forEach(g => {
-        rows.push([g.name, '', calcGroupAvg(g.qIds, qs).toFixed(2), '']);
+        const gRow = [g.name, '', calcGroupAvg(g.qIds, qs).toFixed(2)];
+        if (showCount) gRow.push('');
+        rows.push(gRow);
+        
         qs.filter(q => g.qIds.includes(q.id)).forEach(q => {
-          rows.push(['', q.label||'', (q.avg||0).toFixed(2), q.count||'']);
+          const qRow = ['', q.label||'', (q.avg||0).toFixed(2)];
+          if (showCount) qRow.push(q.count||'');
+          rows.push(qRow);
         });
       });
+      const overall = calcGroupAvg(s.groups.flatMap(g => g.qIds), qs).toFixed(2);
+      const sumRow = [`전체 종합 만족도 : ${overall}점`];
+      for (let k=1; k<(showCount?4:3); k++) sumRow.push('');
+      rows.push(sumRow);
     } else {
       headers = ['항목', '결과'];
       s.groups.forEach(g => {

@@ -273,6 +273,28 @@ body {
 .copy-btn:hover { background: var(--brand-light); color: var(--brand); border-color: var(--brand); }
 .copy-btn.copied { background: var(--success); color: #fff; border-color: var(--success); }
 
+/* ── TOOLBAR & COLOR DOTS ── */
+.header-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.color-dot-btn {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform .15s, border-color .15s;
+}
+.color-dot-btn:hover { transform: scale(1.3); }
+.color-dot-btn.active { border-color: #000; }
+
+.color-dot-btn.success { background-color: var(--success); }
+.color-dot-btn.danger { background-color: var(--danger); }
+.color-dot-btn.primary { background-color: var(--brand); }
+.color-dot-btn.unified { background-color: #36a86f; }
+
 /* ── STATS GRID ── */
 .stats-grid {
   display: grid;
